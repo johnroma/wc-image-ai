@@ -1,4 +1,4 @@
-import { getOpenAi } from "./get-open-ai"
+import { getGeneratedImage } from "./get-generated-image"
 class AIImage extends HTMLImageElement {
   static get observedAttributes() {
     return ["data-fallback"]
@@ -34,7 +34,7 @@ class AIImage extends HTMLImageElement {
       if (!this._prompt) {
         return
       }
-      const openAiResponse = await this.getOpenAi(
+      const openAiResponse = await this.getGeneratedImage(
         this._endpoint as string,
         this._prompt as string,
         this.ph_w as number,
@@ -64,7 +64,7 @@ class AIImage extends HTMLImageElement {
     }
   }
 
-  protected getOpenAi = getOpenAi
+  protected getGeneratedImage = getGeneratedImage
 }
 
 customElements.define("ai-image", AIImage, { extends: "img" })

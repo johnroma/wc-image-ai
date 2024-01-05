@@ -1,4 +1,4 @@
-export const getOpenAi = async (
+export const getGeneratedImage = async (
   endpoint: string,
   prompt: string,
   width: number,
@@ -6,7 +6,7 @@ export const getOpenAi = async (
 ) => {
   //let response = "https://placekitten.com/256/256"
   let response
-  console.log("getOpenAi", endpoint, prompt, width, height)
+
   try {
     const r = await fetch(endpoint, {
       method: "POST",

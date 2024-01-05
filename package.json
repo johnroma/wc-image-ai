@@ -1,11 +1,22 @@
 {
   "name": "wc-img-ai",
   "private": false,
-  "version": "0.0.1",
+  "version": "0.0.2",
+  "description": "Use AI to generate images for your img tags.",
+  "author": {
+    "name": "John Romani",
+    "email": "john@anthood.com"
+  },
+  "keywords": [
+    "web components",
+    "ai",
+    "image",
+    "image ai"
+  ],
+  "homepage": "https://john.ro",
   "type": "module",
-  "exports": "./dist/wc-image-ai.js",
+  "repository": "https://github.com/johnroma/wc-image-ai",
   "license": "MIT",
-  "types": "./dist/wc-image-ai.d.ts",
   "files": [
     "dist",
     "types"
