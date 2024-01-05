@@ -1,0 +1,26 @@
+{
+  "name": "wc-image-ai",
+  "private": false,
+  "version": "0.0.1",
+  "type": "module",
+  "exports": "./dist/wc-image-ai.js",
+  "license": "MIT",
+  "types": "./dist/wc-image-ai.d.ts",
+  "files": [
+    "dist",
+    "types"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-wc": "^2.0.4",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8"
+  }
+}
