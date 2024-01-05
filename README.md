@@ -45,10 +45,14 @@ This function sends a request to the an API to generate an image based on a give
 }
 ```
 
-#### Return
+#### Server Return
 
 it is expected to return a simple string
 
 ```json
 "https://example.com/path/to/generated/image.jpg"
 ```
+
+#### Demo
+
+Check it out [running](https://john.ro/lab/img-ai) inside an MDX/Astro framework
