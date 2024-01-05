@@ -1,5 +1,5 @@
 import { getGeneratedImage } from "./get-generated-image"
-class AIImage extends HTMLImageElement {
+export class AIImage extends HTMLImageElement {
   static get observedAttributes() {
     return ["data-fallback"]
   }
