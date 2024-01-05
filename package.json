@@ -1,7 +1,7 @@
 {
   "name": "wc-img-ai",
   "private": false,
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Use AI to generate images for your img tags.",
   "author": {
     "name": "John Romani",
@@ -23,7 +23,8 @@
   ],
   "main": "./dist/wc-img-ai.js",
   "exports": {
-    ".": "./dist/wc-img-ai.js"
+    ".": "./dist/wc-img-ai.js",
+    "./wc-img-ai.d.ts": "./types/wc-img-ai.d.ts"
   },
   "scripts": {
     "dev": "vite",
