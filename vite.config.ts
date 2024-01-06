@@ -5,7 +5,7 @@ export default defineConfig({
   build: {
     minify: false,
     lib: {
-      entry: "src/ai-image.ts",
+      entry: "src/ai-img.ts",
       formats: ["es"],
     },
   },
