@@ -2,6 +2,10 @@
 
 By simply providing an src to an api that does the AI for you, and you can simply get ai-rendered images anywhere you need based on the alt-attribute.
 
+## Browser Compatibility Note
+
+As of the current state of browser implementations, there are known limitations in Safari when extending native HTML elements, such as `<img>`, using Web Components. This may affect the functionality of AI-based img-tags in Safari. For more details, see the related [WebKit bug report](https://bugs.webkit.org/show_bug.cgi?id=182671).
+
 ```html
 <img
   is="ai-image"

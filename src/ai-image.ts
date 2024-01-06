@@ -13,6 +13,9 @@ export class AIImage extends HTMLImageElement {
 
   constructor() {
     super()
+
+    setTimeout(() => console.log("AIImage constructor"), 0)
+
     this.ph_w = Number(super.getAttribute("width")) || 256
     this.ph_h = Number(super.getAttribute("height")) || 256
     this.svgPlaceholder = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${this.ph_w} ${this.ph_h}"><rect width="${this.ph_w}" height="${this.ph_h}" fill="#ddd"/></svg>`
@@ -22,6 +25,7 @@ export class AIImage extends HTMLImageElement {
 
     this._endpoint = super.getAttribute("src")?.toString() || null
     this.addEventListener("error", (_event) => {
+      console.log("this._prompt", this._prompt)
       super.src =
         "data:image/svg+xml;utf8," +
         encodeURIComponent(this.svgPlaceholder as string)
@@ -34,13 +38,19 @@ export class AIImage extends HTMLImageElement {
       if (!this._prompt) {
         return
       }
-      const openAiResponse = await this.getGeneratedImage(
-        this._endpoint as string,
-        this._prompt as string,
-        this.ph_w as number,
-        this.ph_h as number
-      )
-      super.src = openAiResponse || this._fallbackSrc || ""
+      try {
+        if (!this._prompt) return
+        const openAiResponse = await this.getGeneratedImage(
+          this._endpoint as string,
+          this._prompt as string,
+          this.ph_w as number,
+          this.ph_h as number
+        )
+        super.src = openAiResponse || this._fallbackSrc || ""
+      } catch (error) {
+        console.error("Error fetching AI image:", error)
+        // Implement fallback logic or error handling here
+      }
     }, 1)
   }
 
