@@ -43,5 +43,8 @@
     "@lit-labs/observers": "^2.0.2",
     "@open-wc/lit-helpers": "^0.6.0",
     "lit": "^3.1.0"
+  },
+  "peerDependencies": {
+    "lit": "^3.0.0"
   }
 }
