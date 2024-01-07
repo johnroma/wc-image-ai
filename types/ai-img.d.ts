@@ -11,8 +11,8 @@ export declare class AiImg extends LitElement {
         [key: string]: string;
     };
     connectedCallback(): void;
-    protected constructor();
-    private _onImgError;
+    fetchImage(): Promise<void>;
+    initAttributes(): void;
     protected render(): import("lit").TemplateResult<1>;
     static styles: import("lit").CSSResult;
 }

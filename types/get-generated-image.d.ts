@@ -1,1 +1,2 @@
+export declare const spinner = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><style>.a{animation:b .8s linear infinite;fill:#888}.c{animation-delay:-.65s}.d{animation-delay:-.5s}@keyframes b{93.75%,100%{r:3px}46.875%{r:.2px}}</style><circle class=\"a\" cx=\"4\" cy=\"12\" r=\"3\"/><circle class=\"a c\" cx=\"12\" cy=\"12\" r=\"3\"/><circle class=\"a d\" cx=\"20\" cy=\"12\" r=\"3\"/></svg>";
 export declare const getGeneratedImage: (endpoint: string, prompt: string, width: number, height: number) => Promise<string | undefined>;
