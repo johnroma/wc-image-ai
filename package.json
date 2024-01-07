@@ -1,7 +1,7 @@
 {
   "name": "wc-img-ai",
   "private": false,
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Use AI to generate images for your img tags.",
   "author": {
     "name": "John Romani",
@@ -40,6 +40,7 @@
     "vite": "^5.0.8"
   },
   "dependencies": {
+    "@changesets/cli": "^2.27.1",
     "@lit-labs/observers": "^2.0.2",
     "@open-wc/lit-helpers": "^0.6.0",
     "lit": "^3.1.0"
