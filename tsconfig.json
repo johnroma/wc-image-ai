@@ -15,7 +15,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "outDir": "./types" // Output directory for declaration files
+    "outDir": "./types"
   },
   "include": ["src"]
 }

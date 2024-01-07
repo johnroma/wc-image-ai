@@ -12,6 +12,7 @@ export declare class AiImg extends LitElement {
     };
     connectedCallback(): void;
     protected constructor();
+    private _onImgError;
     protected render(): import("lit").TemplateResult<1>;
     static styles: import("lit").CSSResult;
 }

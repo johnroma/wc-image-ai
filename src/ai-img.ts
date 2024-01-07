@@ -1,8 +1,7 @@
 import { LitElement, html, css } from "lit"
-import { customElement, property } from "lit/decorators.js"
+import { customElement, eventOptions, property } from "lit/decorators.js"
 import { spread } from "@open-wc/lit-helpers"
 import { getGeneratedImage } from "./get-generated-image"
-
 @customElement("ai-img")
 export class AiImg extends LitElement {
   @property({ type: String }) fallback = ""
@@ -42,6 +41,12 @@ export class AiImg extends LitElement {
         this.height = attr.value
       }
     })
+
+    this.imgsrc =
+      "data:image/svg+xml;utf8," +
+      encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${this.width} ${this.height}"><rect width="${this.width}" height="${this.height}" fill="#ddd"/></svg>`
+      )
   }
 
   // Override createRenderRoot to render in the light DOM
@@ -51,6 +56,7 @@ export class AiImg extends LitElement {
 
   protected constructor() {
     super()
+
     setTimeout(async () => {
       if (!this.prompt) {
         this.imgsrc = this.fallback
@@ -70,8 +76,17 @@ export class AiImg extends LitElement {
         this.imgsrc = this.fallback
       }
 
-      // this.imgsrc = "https://picsum.photos/200/300"
-    }, 1000)
+      const img = this.shadowRoot?.querySelector("img")
+
+      //add event listeners
+      //img?.addEventListener("load", this._myFunction)
+      img?.addEventListener("error", this._onImgError.bind(this))
+    }, 1)
+  }
+
+  @eventOptions({ passive: true })
+  private _onImgError() {
+    this.imgsrc = this.fallback
   }
 
   protected render() {
@@ -93,11 +108,23 @@ export class AiImg extends LitElement {
             <img
               src=${this.imgsrc}
               decoding="async"
-              loading="lazy"
+              loading="eager"
               ${spread(this.imgAttributes)}
+              @onerror=${() => {
+                console.log("onerror")
+              }}
+              @onabort=${() => {
+                console.log("onabort")
+              }}
+              @onloadend=${() => {
+                console.log("onloadend")
+              }}
+              @onprogress=${() => {
+                console.log("onprogress")
+              }}
             />
           `
-        : ""}
+        : html`<div>fail</div>`}
     `
   }
 
