@@ -1,8 +1,7 @@
 import { LitElement, html, css } from "lit"
 import { customElement, property } from "lit/decorators.js"
 import { spread } from "@open-wc/lit-helpers"
-import { getGeneratedImage } from "./get-generated-image"
-
+import { getGeneratedImage, spinner } from "./get-generated-image"
 @customElement("ai-img")
 export class AiImg extends LitElement {
   @property({ type: String }) fallback = ""
@@ -35,9 +34,11 @@ export class AiImg extends LitElement {
         Number(this.height)
       )
       this.imgsrc = openAiResponse || this.fallback
+      this.classList.remove("spin")
     } catch (error) {
       console.error("Error fetching AI image:", error)
       this.imgsrc = this.fallback
+      this.classList.remove("spin")
     }
   }
 
@@ -71,6 +72,8 @@ export class AiImg extends LitElement {
       encodeURIComponent(
         `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${this.width} ${this.height}"><rect width="${this.width}" height="${this.height}" fill="#ddd"/></svg>`
       )
+
+    this.classList.add("spin")
   }
 
   protected render() {
@@ -82,8 +85,28 @@ export class AiImg extends LitElement {
     return html`
       <style>
         :host {
-          width: ${hostStyles.width};
-          height: ${hostStyles.height};
+        }
+
+        :host(.spin) {
+          position: relative;
+        }
+
+        :host(.spin):before {
+          content: "";
+          position: absolute;
+          margin: auto 0;
+          width: 100%;
+          height: 100%;
+          display: inline-flex;
+          justify-content: center;
+          align-items: center;
+          color: red;
+          background-image: url("data:image/svg+xml;utf8,${encodeURIComponent(
+            spinner
+          )}");
+          background-repeat: no-repeat;
+          background-position: center;
+          background-size: 25%;
         }
       </style>
 
