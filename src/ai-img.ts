@@ -77,8 +77,18 @@ export class AiImg extends LitElement {
   }
 
   protected render() {
+    const hostStyles = {
+      width: `${this.width}px`,
+      height: `${this.height}px`,
+    }
+
     return html`
       <style>
+        :host {
+          width: ${hostStyles.width};
+          height: ${hostStyles.height};
+        }
+
         :host(.spin) {
           position: relative;
         }
