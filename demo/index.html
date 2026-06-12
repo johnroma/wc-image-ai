@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>wc-img-ai demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 640px;
+        margin: 3rem auto;
+        padding: 0 1rem;
+        color: #222;
+      }
+      h1 { font-size: 1.4rem; }
+      .row { display: flex; gap: 0.5rem; margin: 1rem 0; }
+      input { flex: 1; padding: 0.5rem; font: inherit; }
+      button { padding: 0.5rem 1rem; font: inherit; cursor: pointer; }
+      ai-img { border: 1px solid #eee; border-radius: 8px; }
+      pre { background: #f6f6f6; padding: 0.75rem; border-radius: 8px; overflow-x: auto; }
+      code { background: #f6f6f6; padding: 0 0.25rem; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>&lt;ai-img&gt; demo</h1>
+    <p>
+      Type a prompt and generate. The server mints an id, stores the PNG and
+      returns <code>{ id, url }</code>. Re-rendering with that
+      <code>image-id</code> fetches the stored image instead of calling the AI.
+    </p>
+
+    <div class="row">
+      <input id="prompt" placeholder="a funny dolphin up to no good" value="a funny dolphin up to no good" />
+      <button id="go">Generate</button>
+    </div>
+
+    <div id="stage"></div>
+
+    <p>Last <code>ai-image</code> event:</p>
+    <pre id="event">—</pre>
+
+    <script type="module" src="/dist/wc-img-ai.js"></script>
+    <script type="module">
+      const stage = document.getElementById("stage")
+      const eventOut = document.getElementById("event")
+
+      document.getElementById("go").addEventListener("click", () => {
+        const prompt = document.getElementById("prompt").value
+        stage.innerHTML = ""
+        const el = document.createElement("ai-img")
+        el.setAttribute("endpoint", "/api/img")
+        el.setAttribute("prompt", prompt)
+        el.setAttribute("width", "256")
+        el.setAttribute("height", "256")
+        el.setAttribute("fallback", "https://placehold.co/256x256?text=fallback")
+        el.addEventListener("ai-image", (e) => {
+          eventOut.textContent = JSON.stringify(e.detail, null, 2)
+        })
+        stage.appendChild(el)
+      })
+    </script>
+  </body>
+</html>

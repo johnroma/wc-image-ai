@@ -1,7 +1,7 @@
 {
   "name": "wc-img-ai",
   "private": false,
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Use AI to generate images for your img tags.",
   "author": {
     "name": "John Romani",
@@ -22,20 +22,26 @@
     "types"
   ],
   "main": "./dist/wc-img-ai.js",
+  "types": "./types/ai-img.d.ts",
   "exports": {
-    ".": "./dist/wc-img-ai.js",
-    "./wc-img-ai.d.ts": "./types/wc-img-ai.d.ts"
+    ".": {
+      "types": "./types/ai-img.d.ts",
+      "default": "./dist/wc-img-ai.js"
+    },
+    "./types": "./types/ai-img.d.ts"
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "demo": "node demo/server.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
     "eslint": "^8.56.0",
     "eslint-plugin-wc": "^2.0.4",
+    "nanoid": "^5.0.9",
     "typescript": "^5.2.2",
     "vite": "^5.0.8"
   },
