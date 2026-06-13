@@ -32,6 +32,30 @@ const placeholder = (width: string, height: string) =>
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="#ddd"/></svg>`
   )
 
+const dimensionsFor = (width: string, height: string, ratio: string) => {
+  const ratioMatch = ratio.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/)
+  const ratioWidth = Number(ratioMatch?.[1])
+  const ratioHeight = Number(ratioMatch?.[2])
+  const numericWidth = Number(width)
+
+  if (
+    !height &&
+    Number.isFinite(numericWidth) &&
+    numericWidth > 0 &&
+    Number.isFinite(ratioWidth) &&
+    ratioWidth > 0 &&
+    Number.isFinite(ratioHeight) &&
+    ratioHeight > 0
+  ) {
+    return {
+      width,
+      height: String(Math.round(numericWidth * (ratioHeight / ratioWidth))),
+    }
+  }
+
+  return { width, height }
+}
+
 export class AiImg extends LitElement {
   /**
    * A ready image URL (or data URL). When set, the component acts as a plain
@@ -43,16 +67,16 @@ export class AiImg extends LitElement {
   @property({ type: String }) endpoint = ""
   /** Description used to generate the image (omit when fetching a known id). */
   @property({ type: String }) prompt = ""
-  /** Storage handle. Reflected: set by the server when a new image is minted. */
-  @property({ type: String, attribute: "image-id", reflect: true }) imageId = ""
+  /** Storage handle. Reflected after the server mints a new image. */
+  @property({ type: String, attribute: "image-id" }) imageId = ""
   /** Provider/model hint forwarded to the endpoint (e.g. "gemini", "openai"). */
   @property({ type: String }) llm = ""
-  /** Aspect ratio forwarded to the endpoint (e.g. "16:9", "4:1"). */
+  /** Aspect ratio forwarded to the endpoint and used to derive an omitted height. */
   @property({ type: String }) ratio = ""
   /** Shown when the image cannot be resolved (otherwise a 1x1 transparent PNG). */
   @property({ type: String }) fallback = ""
   @property({ type: String, reflect: true }) width = ""
-  @property({ type: String, reflect: true }) height = ""
+  @property({ type: String }) height = ""
   @property({ type: String, reflect: true }) alt = ""
 
   // Start transparent (sized by :host, but invisible) so a `src`/stored image
@@ -77,6 +101,7 @@ export class AiImg extends LitElement {
 
   private start() {
     this.collectPassThroughAttributes()
+    const dimensions = dimensionsFor(this.width, this.height, this.ratio)
 
     // A ready src bypasses all AI: behave like a plain <img> (the broken-url
     // retry/fallback still applies, but nothing is fetched or generated). No
@@ -95,7 +120,7 @@ export class AiImg extends LitElement {
 
     // We're going to call the endpoint — now show the grey placeholder + spinner
     // as progress feedback while it resolves.
-    this.imgsrc = placeholder(this.width, this.height)
+    this.imgsrc = placeholder(dimensions.width || "1", dimensions.height || "1")
     this.classList.add("spin")
     void this.resolve()
   }
@@ -109,11 +134,12 @@ export class AiImg extends LitElement {
   }
 
   private async resolve() {
+    const dimensions = dimensionsFor(this.width, this.height, this.ratio)
     const result = await resolveImage(this.endpoint, {
       prompt: this.prompt,
       imageId: this.imageId,
-      width: Number(this.width) || undefined,
-      height: Number(this.height) || undefined,
+      width: Number(dimensions.width) || undefined,
+      height: Number(dimensions.height) || undefined,
       llm: this.llm,
       ratio: this.ratio,
     })
@@ -126,6 +152,7 @@ export class AiImg extends LitElement {
     // Reflect the server-confirmed/minted id so the DOM stays truthful.
     if (result.id && result.id !== this.imageId) {
       this.imageId = result.id
+      this.setAttribute("image-id", result.id)
     }
 
     // Hand the id (and url) to the host so it can persist to a database.
@@ -174,6 +201,7 @@ export class AiImg extends LitElement {
   }
 
   protected render() {
+    const dimensions = dimensionsFor(this.width, this.height, this.ratio)
     // `width`/`height` go on the <img> as content attributes, exactly like a
     // native <img>: the browser derives the aspect-ratio and reserves the box
     // (no layout shift) while CSS controls the displayed size.
@@ -181,8 +209,8 @@ export class AiImg extends LitElement {
       <img
         src=${this.imgsrc}
         alt=${this.alt}
-        width=${this.width || nothing}
-        height=${this.height || nothing}
+        width=${dimensions.width || nothing}
+        height=${dimensions.height || nothing}
         decoding="async"
         @error=${this.onImgError}
         ${spread(this.imgAttributes)}

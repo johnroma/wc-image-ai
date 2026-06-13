@@ -41,24 +41,34 @@ pnpm add wc-img-ai
 | `src`       | —         | A ready image URL (or data URL). When set, the component acts as a plain `<img>` and never calls the endpoint. Use it when you already have the image. Highest priority. |
 | `endpoint`  | —         | Your server route. Receives the POST below.                                 |
 | `prompt`    | —         | Description used to generate the image.                                     |
-| `image-id`  | ✅ yes    | Storage handle. Provide a known id to fetch a stored image; the server sets it on the element when a new image is minted. |
+| `image-id`  | on mint   | Storage handle. Provide a known id to fetch a stored image; the server sets it on the element when a new image is minted. |
 | `llm`       | —         | Provider/model hint forwarded to the endpoint (e.g. `gemini`, `openai`).    |
-| `ratio`     | —         | Aspect ratio forwarded to the endpoint (e.g. `16:9`, `4:1`).                |
+| `ratio`     | —         | Aspect ratio forwarded to the endpoint (e.g. `16:9`, `4:1`). With `width`, it derives the effective height. |
 | `fallback`  | —         | Image URL shown if nothing resolves. If omitted, a 1×1 transparent PNG is used. |
 | `width`     | ✅ yes    | Intrinsic width (like `<img width>`) — used for the box aspect-ratio and sent to the endpoint. |
-| `height`    | ✅ yes    | Intrinsic height (like `<img height>`).                                     |
+| `height`    | —         | Optional intrinsic height (like `<img height>`); derived when omitted and `width`/`ratio` are set. |
 | `alt`       | ✅ yes    | Alt text, passed to the inner `<img>`.                                       |
 
 ### Sizing & styling — just like a native `<img>`
 
-Set `width`/`height` and style with `class`/CSS; you rarely need inline
-`style`. `width`/`height` become the inner image's content attributes, so the
-browser reserves the box from their aspect-ratio (no layout shift) while CSS
-controls the displayed size:
+Set `width` plus `ratio`, or the native-image-compatible `width`/`height` pair,
+and style with `class`/CSS; you rarely need inline `style`. The effective
+dimensions become the inner image's content attributes, so the browser reserves
+the box from their aspect-ratio (no layout shift) while CSS controls the
+displayed size:
 
 ```html
 <!-- full-width 3:1 banner, rounded, no layout shift -->
 <ai-img endpoint="/api/img" prompt="…" width="1536" height="512"
+        class="block w-full rounded-xl"></ai-img>
+```
+
+When `ratio` and `width` are set, `height` is optional and the component derives
+it. An explicit `height` remains authoritative for callers that need an exact
+output box:
+
+```html
+<ai-img endpoint="/api/img" prompt="…" width="1536" ratio="3:1"
         class="block w-full rounded-xl"></ai-img>
 ```
 

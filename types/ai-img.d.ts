@@ -10,11 +10,11 @@ export declare class AiImg extends LitElement {
     endpoint: string;
     /** Description used to generate the image (omit when fetching a known id). */
     prompt: string;
-    /** Storage handle. Reflected: set by the server when a new image is minted. */
+    /** Storage handle. Reflected after the server mints a new image. */
     imageId: string;
     /** Provider/model hint forwarded to the endpoint (e.g. "gemini", "openai"). */
     llm: string;
-    /** Aspect ratio forwarded to the endpoint (e.g. "16:9", "4:1"). */
+    /** Aspect ratio forwarded to the endpoint and used to derive an omitted height. */
     ratio: string;
     /** Shown when the image cannot be resolved (otherwise a 1x1 transparent PNG). */
     fallback: string;
