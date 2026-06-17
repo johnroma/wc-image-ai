@@ -3,6 +3,7 @@ import { property, state } from "lit/decorators.js"
 import { spread } from "@open-wc/lit-helpers"
 import {
   resolveImage,
+  ResolveImageError,
   spinner,
   TRANSPARENT_PIXEL,
 } from "./get-generated-image"
@@ -78,6 +79,12 @@ export class AiImg extends LitElement {
   @property({ type: String, reflect: true }) width = ""
   @property({ type: String }) height = ""
   @property({ type: String, reflect: true }) alt = ""
+  /** Durable request state for hosts that attach event listeners after upgrade. */
+  @property({ attribute: false }) status: "idle" | "loading" | "loaded" | "error" = "idle"
+  /** Durable endpoint/load error message; also emitted via `ai-image-error`. */
+  @property({ attribute: false }) errorMessage = ""
+  /** Durable HTTP status when the endpoint returned a non-success response. */
+  @property({ attribute: false }) errorStatus: number | undefined
 
   // Start transparent (sized by :host, but invisible) so a `src`/stored image
   // never flashes the grey generating-placeholder. The grey placeholder is
@@ -108,12 +115,14 @@ export class AiImg extends LitElement {
     // grey placeholder — it loads straight into the (already reserved) box.
     if (this.src) {
       this.resolvedUrl = this.src
+      this.status = "loaded"
       this.settle(this.src)
       return
     }
 
     // Nothing to fetch and nothing to generate.
     if (!this.prompt && !this.imageId) {
+      this.status = "idle"
       this.settleFallback()
       return
     }
@@ -121,7 +130,9 @@ export class AiImg extends LitElement {
     // We're going to call the endpoint — now show the grey placeholder + spinner
     // as progress feedback while it resolves.
     this.imgsrc = placeholder(dimensions.width || "1", dimensions.height || "1")
-    this.classList.add("spin")
+    this.status = "loading"
+    this.errorMessage = ""
+    this.errorStatus = undefined
     void this.resolve()
   }
 
@@ -135,16 +146,21 @@ export class AiImg extends LitElement {
 
   private async resolve() {
     const dimensions = dimensionsFor(this.width, this.height, this.ratio)
-    const result = await resolveImage(this.endpoint, {
-      prompt: this.prompt,
-      imageId: this.imageId,
-      width: Number(dimensions.width) || undefined,
-      height: Number(dimensions.height) || undefined,
-      llm: this.llm,
-      ratio: this.ratio,
-    })
-
-    if (!result) {
+    let result
+    try {
+      result = await resolveImage(this.endpoint, {
+        prompt: this.prompt,
+        imageId: this.imageId,
+        width: Number(dimensions.width) || undefined,
+        height: Number(dimensions.height) || undefined,
+        llm: this.llm,
+        ratio: this.ratio,
+      })
+    } catch (error) {
+      this.dispatchError(
+        error instanceof Error ? error.message : "image request failed",
+        error instanceof ResolveImageError ? error.status : undefined
+      )
       this.settleFallback()
       return
     }
@@ -167,17 +183,30 @@ export class AiImg extends LitElement {
     this.resolvedUrl = result.url
     this.retried = false
     this.onFallback = false
+    this.status = "loaded"
     this.settle(result.url)
   }
 
   private settle(src: string) {
     this.imgsrc = src
-    this.classList.remove("spin")
   }
 
   private settleFallback() {
     this.onFallback = true
     this.settle(this.fallback || TRANSPARENT_PIXEL)
+  }
+
+  private dispatchError(message: string, status?: number) {
+    this.status = "error"
+    this.errorMessage = message
+    this.errorStatus = status
+    this.dispatchEvent(
+      new CustomEvent("ai-image-error", {
+        detail: { message, status, prompt: this.prompt },
+        bubbles: true,
+        composed: true,
+      })
+    )
   }
 
   // The server returned a url, but the browser couldn't load it (transient 404
@@ -197,6 +226,7 @@ export class AiImg extends LitElement {
     }
 
     this.resolvedUrl = ""
+    this.dispatchError("generated image URL could not be loaded")
     this.settleFallback()
   }
 
@@ -211,10 +241,16 @@ export class AiImg extends LitElement {
         alt=${this.alt}
         width=${dimensions.width || nothing}
         height=${dimensions.height || nothing}
+        style=${dimensions.width && dimensions.height
+          ? `aspect-ratio: ${dimensions.width} / ${dimensions.height}`
+          : nothing}
         decoding="async"
         @error=${this.onImgError}
         ${spread(this.imgAttributes)}
       />
+      ${this.status === "loading"
+        ? html`<span class="spinner" aria-hidden="true"></span>`
+        : nothing}
     `
   }
 
@@ -245,8 +281,7 @@ export class AiImg extends LitElement {
       clip-path: inherit;
     }
 
-    :host(.spin)::before {
-      content: "";
+    .spinner {
       position: absolute;
       inset: 0;
       margin: auto;
@@ -254,6 +289,7 @@ export class AiImg extends LitElement {
       background-repeat: no-repeat;
       background-position: center;
       background-size: 25%;
+      pointer-events: none;
     }
   `
 }

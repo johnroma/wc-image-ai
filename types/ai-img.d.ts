@@ -21,6 +21,12 @@ export declare class AiImg extends LitElement {
     width: string;
     height: string;
     alt: string;
+    /** Durable request state for hosts that attach event listeners after upgrade. */
+    status: "idle" | "loading" | "loaded" | "error";
+    /** Durable endpoint/load error message; also emitted via `ai-image-error`. */
+    errorMessage: string;
+    /** Durable HTTP status when the endpoint returned a non-success response. */
+    errorStatus: number | undefined;
     private imgsrc;
     private imgAttributes;
     private onFallback;
@@ -32,6 +38,7 @@ export declare class AiImg extends LitElement {
     private resolve;
     private settle;
     private settleFallback;
+    private dispatchError;
     private onImgError;
     protected render(): import("lit").TemplateResult<1>;
     static styles: import("lit").CSSResult;

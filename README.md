@@ -83,7 +83,7 @@ src set                   → render it as a plain <img>      (no endpoint call)
 else no prompt, no image-id → fallback → 1×1 transparent PNG (nothing to ask)
 else → POST endpoint once  { prompt, imageId, width, height, llm, ratio }
    200 {id,url} → render url, reflect image-id, fire `ai-image` event
-   404 / error  → fallback → 1×1 transparent PNG
+   404 / error  → fire `ai-image-error` → fallback → 1×1 transparent PNG
 ```
 
 `src` is the cheapest path: if you already have the image (a precomputed or
@@ -111,6 +111,17 @@ database so you can render the same image again later without re-generating.
 el.addEventListener("ai-image", (e) => {
   // e.detail = { id, url, prompt }
   db.save(e.detail)
+})
+```
+
+## The `ai-image-error` event
+
+Failed endpoint requests and generated image load failures fire a bubbling,
+composed event before the component settles to its fallback:
+
+```js
+el.addEventListener("ai-image-error", (e) => {
+  console.error(e.detail.message, e.detail.status)
 })
 ```
 
