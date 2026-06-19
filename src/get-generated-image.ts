@@ -23,6 +23,9 @@ export interface ResolveImageRequest {
 export interface ResolvedImage {
   id: string
   url: string
+  /** Present when the endpoint returned raw image bytes (blob-proxy mode).
+   *  The host is responsible for uploading this to a storage endpoint. */
+  blob?: Blob
 }
 
 export class ResolveImageError extends Error {
@@ -95,6 +98,16 @@ export const resolveImage = async (
       await errorMessageFrom(response),
       response.status
     )
+  }
+
+  // Blob-proxy mode: endpoint owns only generation and returns raw bytes.
+  // The host receives the blob via the `ai-image` event and uploads it
+  // separately to a storage endpoint.
+  const contentType = response.headers.get("content-type") ?? ""
+  if (contentType.startsWith("image/")) {
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    return { id: "", url, blob }
   }
 
   let data: Partial<ResolvedImage> | null

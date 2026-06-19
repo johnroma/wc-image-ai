@@ -7,6 +7,7 @@ import {
   spinner,
   TRANSPARENT_PIXEL,
 } from "./get-generated-image"
+import { isRatioSupported } from "./provider-ratios"
 
 const SPINNER_BG = unsafeCSS(encodeURIComponent(spinner))
 
@@ -97,23 +98,40 @@ export class AiImg extends LitElement {
   private onFallback = false
   private retried = false
   private resolvedUrl = ""
+  private blobUrl = ""
 
   connectedCallback() {
     super.connectedCallback()
+    console.log('[ai-img] connectedCallback — status was:', this.status)
     // Defer so a framework host (e.g. React) has finished applying every
     // prop/attribute for this commit — `src`/`prompt` can land just after
     // connectedCallback. A microtask runs after the synchronous commit.
     queueMicrotask(() => this.start())
   }
 
+  // Debug helper — call from browser console: document.querySelector('ai-img').debugState()
+  debugState() {
+    return { src: this.src, prompt: this.prompt, imageId: this.imageId, status: this.status, blobUrl: this.blobUrl, imgsrc: this.imgsrc }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    if (this.blobUrl) {
+      URL.revokeObjectURL(this.blobUrl)
+      this.blobUrl = ""
+    }
+  }
+
   private start() {
     this.collectPassThroughAttributes()
     const dimensions = dimensionsFor(this.width, this.height, this.ratio)
+    console.log('[ai-img] start()', { src: this.src, prompt: this.prompt?.slice(0, 60), imageId: this.imageId, status: this.status })
 
     // A ready src bypasses all AI: behave like a plain <img> (the broken-url
     // retry/fallback still applies, but nothing is fetched or generated). No
     // grey placeholder — it loads straight into the (already reserved) box.
     if (this.src) {
+      console.log('[ai-img] src provided — skipping generation', this.src.slice(0, 80))
       this.resolvedUrl = this.src
       this.status = "loaded"
       this.settle(this.src)
@@ -122,13 +140,23 @@ export class AiImg extends LitElement {
 
     // Nothing to fetch and nothing to generate.
     if (!this.prompt && !this.imageId) {
+      console.log('[ai-img] no prompt and no imageId — idle')
       this.status = "idle"
+      this.settleFallback()
+      return
+    }
+
+    // Validate provider+ratio before hitting the endpoint.
+    if (this.llm && this.ratio && !isRatioSupported(this.llm, this.ratio)) {
+      console.error(`[ai-img] ratio ${this.ratio} is not supported by provider ${this.llm}`)
+      this.dispatchError(`ratio ${this.ratio} is not supported by provider ${this.llm}`)
       this.settleFallback()
       return
     }
 
     // We're going to call the endpoint — now show the grey placeholder + spinner
     // as progress feedback while it resolves.
+    console.log('[ai-img] starting generation via', this.endpoint)
     this.imgsrc = placeholder(dimensions.width || "1", dimensions.height || "1")
     this.status = "loading"
     this.errorMessage = ""
@@ -157,6 +185,7 @@ export class AiImg extends LitElement {
         ratio: this.ratio,
       })
     } catch (error) {
+      console.error('[ai-img] resolve error', error)
       this.dispatchError(
         error instanceof Error ? error.message : "image request failed",
         error instanceof ResolveImageError ? error.status : undefined
@@ -165,16 +194,24 @@ export class AiImg extends LitElement {
       return
     }
 
+    console.log('[ai-img] resolved', { id: result.id, url: result.url.slice(0, 80), hasBlob: !!result.blob, blobSize: result.blob?.size })
+
     // Reflect the server-confirmed/minted id so the DOM stays truthful.
     if (result.id && result.id !== this.imageId) {
       this.imageId = result.id
       this.setAttribute("image-id", result.id)
     }
 
+    if (result.blob) {
+      this.blobUrl = result.url
+    }
+
     // Hand the id (and url) to the host so it can persist to a database.
+    // In blob-proxy mode, `blob` is included so the host can upload it.
+    console.log('[ai-img] dispatching ai-image event', { hasBlob: !!result.blob })
     this.dispatchEvent(
       new CustomEvent("ai-image", {
-        detail: { id: result.id, url: result.url, prompt: this.prompt },
+        detail: { id: result.id, url: result.url, prompt: this.prompt, blob: result.blob },
         bubbles: true,
         composed: true,
       })
