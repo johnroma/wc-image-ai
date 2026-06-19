@@ -13,6 +13,9 @@ export interface ResolveImageRequest {
 export interface ResolvedImage {
     id: string;
     url: string;
+    /** Present when the endpoint returned raw image bytes (blob-proxy mode).
+     *  The host is responsible for uploading this to a storage endpoint. */
+    blob?: Blob;
 }
 export declare class ResolveImageError extends Error {
     readonly status?: number | undefined;

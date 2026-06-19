@@ -5,7 +5,10 @@ export default defineConfig({
   build: {
     minify: false,
     lib: {
-      entry: "src/ai-img.ts",
+      entry: {
+        "wc-img-ai": "src/ai-img.ts",
+        "provider-ratios": "src/provider-ratios.ts",
+      },
       formats: ["es"],
     },
   },

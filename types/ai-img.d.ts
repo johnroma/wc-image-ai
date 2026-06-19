@@ -32,7 +32,17 @@ export declare class AiImg extends LitElement {
     private onFallback;
     private retried;
     private resolvedUrl;
+    private blobUrl;
     connectedCallback(): void;
+    debugState(): {
+        src: string;
+        prompt: string;
+        imageId: string;
+        status: "error" | "loading" | "idle" | "loaded";
+        blobUrl: string;
+        imgsrc: string;
+    };
+    disconnectedCallback(): void;
     private start;
     private collectPassThroughAttributes;
     private resolve;

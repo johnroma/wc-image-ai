@@ -27,6 +27,10 @@
       "types": "./types/ai-img.d.ts",
       "default": "./dist/wc-img-ai.js"
     },
+    "./provider-ratios": {
+      "types": "./types/provider-ratios.d.ts",
+      "default": "./dist/provider-ratios.js"
+    },
     "./types": "./types/ai-img.d.ts"
   },
   "scripts": {
