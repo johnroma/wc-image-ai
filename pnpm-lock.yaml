@@ -15,8 +15,8 @@ importers:
         specifier: ^2.0.2
         version: 2.1.0
       '@open-wc/lit-helpers':
-        specifier: ^0.6.0
-        version: 0.6.0(lit@3.3.3)
+        specifier: ^0.7.0
+        version: 0.7.0(lit@3.3.3)
       lit:
         specifier: ^3.1.0
         version: 3.3.3
@@ -312,10 +312,10 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@open-wc/lit-helpers@0.6.0':
-    resolution: {integrity: sha512-9F0Rw18Lupp8hehF299yYozN4cFMTnHeCVNtz0k18/eUkcUUb6DCWerL/ASJ9lZ4bLA/YUPmrkdgZz/xe9cKeg==}
+  '@open-wc/lit-helpers@0.7.0':
+    resolution: {integrity: sha512-4NBlx5ve0EvZplCRJbESm0MdMbRCw16alP2y76KAAAwzmFFXXrUj5hFwhw55+sSg5qaRRx6sY+s7usKgnNo3TQ==}
     peerDependencies:
-      lit: ^2.0.0
+      lit: ^2.0.0 || ^3.0.0
 
   '@rollup/rollup-android-arm-eabi@4.62.0':
     resolution: {integrity: sha512-IPIQ55ythEHkfEd9jMEi32OQ7SxURsGA43JI22lj01OLZNt2NUbJX8YUHxkVWyQ6daHPNn0truF5nSj3DQp6YQ==}
@@ -1485,7 +1485,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@open-wc/lit-helpers@0.6.0(lit@3.3.3)':
+  '@open-wc/lit-helpers@0.7.0(lit@3.3.3)':
     dependencies:
       lit: 3.3.3
 

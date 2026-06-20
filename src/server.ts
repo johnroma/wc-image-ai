@@ -80,8 +80,15 @@ async function callOpenAI(
   })
 
   if (!response.ok) {
-    const detail = (await response.text()).replace(/\s+/g, ' ').trim().slice(0, 300)
-    throw new Error(`OpenAI ${model} ${response.status}: ${detail}`)
+    const text = (await response.text()).trim()
+    let message = `OpenAI image generation failed (${response.status})`
+    try {
+      const body = JSON.parse(text) as { error?: { message?: string } }
+      if (body.error?.message) message = body.error.message
+    } catch {
+      message = text.replace(/\s+/g, ' ').slice(0, 300)
+    }
+    throw new Error(message)
   }
 
   const data = (await response.json()) as { data?: Array<{ b64_json?: string }> }
@@ -120,8 +127,15 @@ async function callGemini(
   })
 
   if (!response.ok) {
-    const detail = (await response.text()).replace(/\s+/g, ' ').trim().slice(0, 300)
-    throw new Error(`Gemini ${model} ${response.status}: ${detail}`)
+    const text = (await response.text()).trim()
+    let message = `Gemini image generation failed (${response.status})`
+    try {
+      const body = JSON.parse(text) as { error?: { message?: string } }
+      if (body.error?.message) message = body.error.message
+    } catch {
+      message = text.replace(/\s+/g, ' ').slice(0, 300)
+    }
+    throw new Error(message)
   }
 
   const data = (await response.json()) as {
