@@ -15,7 +15,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "outDir": "./types"
+    "outDir": "./types",
+    "types": []
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/server.ts"]
 }

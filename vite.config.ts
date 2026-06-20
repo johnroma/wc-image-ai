@@ -8,6 +8,7 @@ export default defineConfig({
       entry: {
         "wc-img-ai": "src/ai-img.ts",
         "provider-ratios": "src/provider-ratios.ts",
+        "server": "src/server.ts",
       },
       formats: ["es"],
     },

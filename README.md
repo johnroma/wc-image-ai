@@ -1,28 +1,30 @@
 # wc-img-ai
 
-AI-generated images as a web component. Drop an `<ai-img>` anywhere, give it a
-`prompt` and the URL of your own server endpoint, and it renders an
-AI-generated image — while the API key, image generation and storage all stay
-on the server.
+AI-generated images as a web component, with a matching server module that owns
+all provider logic. Drop an `<ai-img>` anywhere, point it at your endpoint, and
+generation happens server-side — API keys never leave the server.
 
 ```html
 <ai-img
   endpoint="/api/img"
-  width="256"
-  height="256"
-  prompt="a funny dolphin up to no good"
-  fallback="https://placehold.co/256x256"
+  width="1536"
+  ratio="16:9"
+  prompt="a wide panoramic vintage travel poster of Lisbon"
+  class="block w-full rounded-xl"
 ></ai-img>
 ```
 
-## Why a server endpoint?
+## Packages
 
-The component is deliberately dumb: it never holds an API key, never picks a
-provider, and never talks to OpenAI/Gemini directly. It sends a single POST to
-**your** endpoint, and your server decides what to do. That keeps tokens
-server-side and lets you store, cache and bill generation however you like.
+| Import | Environment | What it does |
+|---|---|---|
+| `wc-img-ai` | browser | `<ai-img>` web component |
+| `wc-img-ai/provider-ratios` | browser + server | Provider ratio lists, canvas capabilities, type utilities |
+| `wc-img-ai/server` | Node.js server | `generateImageBuffer` — full multi-provider generation brain |
 
-## Install
+---
+
+## `<ai-img>` web component
 
 ```bash
 pnpm add wc-img-ai
@@ -34,144 +36,191 @@ pnpm add wc-img-ai
 </script>
 ```
 
-## Attributes
+### Attributes
 
-| Attribute   | Reflected | Description                                                                 |
-| ----------- | --------- | --------------------------------------------------------------------------- |
-| `src`       | —         | A ready image URL (or data URL). When set, the component acts as a plain `<img>` and never calls the endpoint. Use it when you already have the image. Highest priority. |
-| `endpoint`  | —         | Your server route. Receives the POST below.                                 |
-| `prompt`    | —         | Description used to generate the image.                                     |
-| `image-id`  | on mint   | Storage handle. Provide a known id to fetch a stored image; the server sets it on the element when a new image is minted. |
-| `llm`       | —         | Provider/model hint forwarded to the endpoint (e.g. `gemini`, `openai`).    |
-| `ratio`     | —         | Aspect ratio forwarded to the endpoint (e.g. `16:9`, `4:1`). With `width`, it derives the effective height. |
-| `fallback`  | —         | Image URL shown if nothing resolves. If omitted, a 1×1 transparent PNG is used. |
-| `width`     | ✅ yes    | Intrinsic width (like `<img width>`) — used for the box aspect-ratio and sent to the endpoint. |
-| `height`    | —         | Optional intrinsic height (like `<img height>`); derived when omitted and `width`/`ratio` are set. |
-| `alt`       | ✅ yes    | Alt text, passed to the inner `<img>`.                                       |
+| Attribute   | Reflected | Description |
+| ----------- | --------- | ----------- |
+| `src`       | —         | A ready image URL. When set the component acts as a plain `<img>` and skips the endpoint entirely. Highest priority. |
+| `endpoint`  | —         | Your server route. Receives the POST described below. |
+| `prompt`    | —         | Description used to generate the image. |
+| `image-id`  | on mint   | Storage handle. Provide a known id to skip generation; the server reflects the minted id back on new images. |
+| `llm`       | —         | Provider hint forwarded to the endpoint (`openai`, `gemini`). |
+| `ratio`     | —         | Aspect ratio forwarded to the endpoint (`16:9`, `4:1`, …). With `width`, derives the effective height. |
+| `fallback`  | —         | URL shown if nothing resolves. Defaults to a 1×1 transparent PNG. |
+| `width`     | ✅        | Intrinsic width — used for box aspect-ratio and sent to the endpoint. |
+| `height`    | —         | Optional intrinsic height; derived when omitted and `width`/`ratio` are set. |
+| `alt`       | ✅        | Alt text for the inner `<img>`. |
 
-### Sizing & styling — just like a native `<img>`
-
-Set `width` plus `ratio`, or the native-image-compatible `width`/`height` pair,
-and style with `class`/CSS; you rarely need inline `style`. The effective
-dimensions become the inner image's content attributes, so the browser reserves
-the box from their aspect-ratio (no layout shift) while CSS controls the
-displayed size:
-
-```html
-<!-- full-width 3:1 banner, rounded, no layout shift -->
-<ai-img endpoint="/api/img" prompt="…" width="1536" height="512"
-        class="block w-full rounded-xl"></ai-img>
-```
-
-When `ratio` and `width` are set, `height` is optional and the component derives
-it. An explicit `height` remains authoritative for callers that need an exact
-output box:
-
-```html
-<ai-img endpoint="/api/img" prompt="…" width="1536" ratio="3:1"
-        class="block w-full rounded-xl"></ai-img>
-```
-
-Visual properties bridge the shadow boundary via `inherit`, so utility classes
-like `rounded-xl`, `object-cover`, `shadow-lg` on `<ai-img>` style the image.
-Any other attribute (e.g. `loading`) is passed through to the inner `<img>`.
-
-## How it resolves
+### How it resolves
 
 ```
-src set                   → render it as a plain <img>      (no endpoint call)
-else no prompt, no image-id → fallback → 1×1 transparent PNG (nothing to ask)
-else → POST endpoint once  { prompt, imageId, width, height, llm, ratio }
-   200 {id,url} → render url, reflect image-id, fire `ai-image` event
-   404 / error  → fire `ai-image-error` → fallback → 1×1 transparent PNG
+src set                    → plain <img>, no endpoint call
+no prompt, no image-id     → fallback → 1×1 transparent PNG
+otherwise → POST endpoint  { prompt, imageId, width, height, llm, ratio }
+  200 { id, url }  → render, reflect image-id, fire ai-image event
+  error            → fire ai-image-error → fallback → 1×1 transparent PNG
 ```
 
-`src` is the cheapest path: if you already have the image (a precomputed or
-returning one), set `src` and the component skips the AI entirely. Only when
-`src` is empty does it fall back to the `prompt`/`image-id` flow.
+If the returned URL fails to load in the browser, the component retries once
+(cache-busted) then falls to the fallback chain.
 
-> **Performance note.** For an image you _already have the URL for_, a plain
-> `<img src>` will paint faster than `<ai-img src>` — the web component can't
-> render until its own script has loaded and defined the element, whereas a
-> native `<img>` loads with the document. Use `src` for a single unified tag;
-> reach for a native `<img>` (and load `<ai-img>` only when you need to
-> generate) when first paint of a known image is critical.
+### Events
 
-The component never branches on whether an image exists — the **server** owns
-that decision (see the contract below). If the returned `url` itself fails to
-load in the `<img>` (a transient 404, slow propagation, a stale url), the
-component retries once and then drops to the fallback chain.
-
-## The `ai-image` event
-
-Fired after a successful resolve. Use it to persist the id (and url) to a
-database so you can render the same image again later without re-generating.
-
+**`ai-image`** — fired after a successful resolve:
 ```js
 el.addEventListener("ai-image", (e) => {
-  // e.detail = { id, url, prompt }
-  db.save(e.detail)
+  // e.detail = { id, url, prompt, blob? }
+  db.save({ id: e.detail.id, url: e.detail.url })
 })
 ```
 
-## The `ai-image-error` event
-
-Failed endpoint requests and generated image load failures fire a bubbling,
-composed event before the component settles to its fallback:
-
+**`ai-image-error`** — fired before settling on the fallback:
 ```js
 el.addEventListener("ai-image-error", (e) => {
   console.error(e.detail.message, e.detail.status)
 })
 ```
 
-The minted id is also reflected onto the `image-id` attribute.
+### Sizing & styling
 
-## Server contract
+Set `width` + `ratio` (or `width` + `height`) and style with CSS. The component
+reserves the layout box at the correct aspect ratio (no layout shift) while CSS
+controls the displayed size. Visual properties (`border-radius`, `object-fit`,
+etc.) bridge the shadow boundary via `inherit`:
 
-The component talks to a single endpoint with one POST. Your server is the
-"smart" side that decides between fetching a stored image and generating a new
-one.
-
-### `POST {endpoint}`
-
-Request body:
-
-```json
-{ "prompt": "a funny dolphin", "imageId": "V1StGXR8_Z5", "width": 256, "height": 256, "llm": "gemini", "ratio": "16:9" }
+```html
+<ai-img endpoint="/api/img" prompt="…"
+        width="1536" ratio="16:9"
+        class="block w-full rounded-xl object-cover"></ai-img>
 ```
 
-`imageId`, `width`, `height`, `llm` and `ratio` are optional. Use `llm`/`ratio`
-to let the server pick a provider and aspect ratio. Expected server behaviour:
+---
 
-| Condition                                   | Response          |
-| ------------------------------------------- | ----------------- |
-| `imageId` given and stored                  | `200 {id,url}` — return it, no AI |
-| `imageId` given but missing, `prompt` given | `200 {id,url}` — generate (mint a new id) |
-| no `imageId`, `prompt` given                | `200 {id,url}` — generate |
-| nothing to do                               | `404`             |
+## `wc-img-ai/server` — generation brain
 
-Response body on success:
-
-```json
-{ "id": "V1StGXR8_Z5", "url": "/images/V1StGXR8_Z5.png" }
-```
-
-`url` can be anything the browser can load (a hosted/CDN URL, a route on your
-server, or a data URL).
-
-## Reference demo server
-
-`demo/server.mjs` is a complete, dependency-light reference implementation:
-OpenAI `gpt-image-2`, nanoid ids, filesystem storage under `images/`, served
-back as stable URLs.
+The server module handles provider selection, fallback chain, ratio snapping
+and timeout budgeting. It returns raw bytes — storing and serving is the
+caller's concern.
 
 ```bash
-cp .env.example .env   # add OPENAI_API_KEY
-pnpm install
-pnpm build
-pnpm demo              # http://localhost:3000
+# It's a Node.js module — import only in server code
+import { generateImageBuffer } from 'wc-img-ai/server'
 ```
+
+### `generateImageBuffer(prompt, width, height, options?)`
+
+```ts
+const { buffer, mimeType } = await generateImageBuffer(
+  "a vintage travel poster of Lisbon",
+  1536,
+  864,
+  { provider: 'gemini', aspectRatio: '16:9' }   // options optional
+)
+// buffer: Buffer, mimeType: 'image/png' | 'image/jpeg'
+```
+
+With no `provider` specified, defaults to `openai`. The module calls exactly
+one provider and throws on failure — provider fallback and retry strategy are
+the caller's responsibility.
+
+### Provider routing utilities
+
+For implementing your own fallback strategy:
+
+```ts
+import { withinOpenaiRatio, openaiGenerationSize, nearestGeminiRatio } from 'wc-img-ai/server'
+
+async function generateWithFallback(prompt, width, height) {
+  if (withinOpenaiRatio(width, height)) {
+    try { return await generateImageBuffer(prompt, width, height, { provider: 'openai' }) }
+    catch { /* try next */ }
+  }
+  return generateImageBuffer(prompt, width, height, {
+    provider: 'gemini',
+    aspectRatio: nearestGeminiRatio(width, height),
+  })
+}
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `OPENAI_API_KEY` | — | Required for OpenAI provider |
+| `GEMINI_API_KEY` | — | Required for Gemini provider |
+| `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Override OpenAI model |
+| `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` | Override Gemini model |
+
+### Minimal server example
+
+```js
+import { generateImageBuffer } from 'wc-img-ai/server'
+import { nanoid } from 'nanoid'
+import fs from 'node:fs'
+
+// POST /api/img  { prompt, imageId?, width, height, llm?, ratio? }
+async function handleImagePost(body) {
+  const { prompt, imageId, width, height, llm, ratio } = body
+
+  // Return stored image if we already have it
+  if (imageId && fs.existsSync(`images/${imageId}.png`)) {
+    return { id: imageId, url: `/images/${imageId}.png` }
+  }
+
+  if (!prompt) throw new Error('prompt required')
+
+  const { buffer, mimeType } = await generateImageBuffer(
+    prompt, width ?? 0, height ?? 0,
+    { provider: llm, aspectRatio: ratio }
+  )
+
+  const id = nanoid()
+  const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png'
+  fs.writeFileSync(`images/${id}.${ext}`, buffer)
+  return { id, url: `/images/${id}.${ext}` }
+}
+```
+
+See `demo/server.mjs` for a complete runnable HTTP server using this pattern.
+
+---
+
+## `wc-img-ai/provider-ratios` — provider capabilities
+
+Shared between browser and server — the single source of truth for which
+ratios and canvas constraints each provider supports.
+
+```ts
+import {
+  OPENAI_RATIOS, GEMINI_RATIOS,
+  PROVIDER_CANVAS_CAPABILITIES,
+  generationCanvasForProvider,
+  isRatioSupported,
+  type HeroProvider, type OpenAiRatio, type GeminiRatio,
+} from 'wc-img-ai/provider-ratios'
+```
+
+The `<ai-img>` component validates `llm` + `ratio` against this module before
+making any endpoint call.
+
+---
+
+## Server endpoint contract
+
+One POST, server decides everything:
+
+```
+POST {endpoint}  { prompt, imageId?, width, height, llm?, ratio? }
+
+  imageId given & stored   → 200 { id, url }       no AI call
+  imageId missing + prompt → 200 { id, url }       generate (new id)
+  prompt only              → 200 { id, url }       generate
+  nothing to do            → 404
+```
+
+The server can also return raw image bytes (blob-proxy mode) — the component
+detects the `Content-Type: image/*` response and fires the `ai-image` event
+with a `blob` field so the host can upload to its own storage.
 
 ## License
 
