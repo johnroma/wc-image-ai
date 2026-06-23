@@ -41,6 +41,10 @@ export type GenerateOptions = {
   /** Override the Gemini model. Falls back to `GEMINI_IMAGE_MODEL` env var,
    *  then `gemini-3.1-flash-image`. */
   geminiModel?: string
+  /** Explicit Gemini output-size tier (`'512'`, `'1K'`, `'2K'`).
+   *  When omitted, size is derived automatically from the requested dimensions.
+   *  Note: `'512'` is only supported by `gemini-3.1-flash-image`. */
+  geminiImageSize?: string
   /** Per-request timeout in milliseconds. Defaults to 90 000 (90 s). */
   timeoutMs?: number
 }
@@ -104,6 +108,7 @@ async function callGemini(
   model: string,
   timeoutMs: number,
   explicitRatio?: string,
+  explicitImageSize?: string,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set')
@@ -117,9 +122,11 @@ async function callGemini(
         responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: {
           aspectRatio: explicitRatio ?? nearestGeminiRatio(width, height),
-          ...(Math.max(width, height) > PROVIDER_CANVAS_CAPABILITIES.gemini.imageSize2KThreshold
-            ? { imageSize: '2K' }
-            : {}),
+          ...(explicitImageSize != null
+            ? { imageSize: explicitImageSize }
+            : Math.max(width, height) > PROVIDER_CANVAS_CAPABILITIES.gemini.imageSize2KThreshold
+              ? { imageSize: '2K' }
+              : {}),
         },
       },
     }),
@@ -181,7 +188,7 @@ export async function generateImageBuffer(
     result = await callOpenAI(prompt, openaiGenerationSize(w, h), model, timeoutMs)
   } else if (provider === 'gemini') {
     const model = options.geminiModel ?? process.env.GEMINI_IMAGE_MODEL ?? DEFAULT_GEMINI_MODEL
-    result = await callGemini(prompt, w, h, model, timeoutMs, options.aspectRatio)
+    result = await callGemini(prompt, w, h, model, timeoutMs, options.aspectRatio, options.geminiImageSize)
   } else {
     throw new Error(`Unknown provider: ${provider satisfies never}`)
   }
