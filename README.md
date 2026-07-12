@@ -46,6 +46,9 @@ pnpm add wc-img-ai
 | `image-id`  | on mint   | Storage handle. Provide a known id to skip generation; the server reflects the minted id back on new images. |
 | `llm`       | —         | Provider hint forwarded to the endpoint (`openai`, `gemini`). |
 | `ratio`     | —         | Aspect ratio forwarded to the endpoint (`16:9`, `4:1`, …). With `width`, derives the effective height. |
+| `light`     | —         | Boolean hint forwarded for `llm="gemini"`; selects Gemini Flash Lite instead of regular Flash. |
+| `subscription` | —      | Requests the endpoint's subscription-backed transport instead of API billing. |
+| `regenerate` | —        | Bypasses and replaces the endpoint cache for this generation identity. |
 | `fallback`  | —         | URL shown if nothing resolves. Defaults to a 1×1 transparent PNG. |
 | `width`     | ✅        | Intrinsic width — used for box aspect-ratio and sent to the endpoint. |
 | `height`    | —         | Optional intrinsic height; derived when omitted and `width`/`ratio` are set. |
@@ -56,7 +59,7 @@ pnpm add wc-img-ai
 ```
 src set                    → plain <img>, no endpoint call
 no prompt, no image-id     → fallback → 1×1 transparent PNG
-otherwise → POST endpoint  { prompt, imageId, width, height, llm, ratio }
+otherwise → POST endpoint  { prompt, imageId, width, height, llm, ratio, light? }
   200 { id, url }  → render, reflect image-id, fire ai-image event
   error            → fire ai-image-error → fallback → 1×1 transparent PNG
 ```
@@ -123,6 +126,34 @@ With no `provider` specified, defaults to `openai`. The module calls exactly
 one provider and throws on failure — provider fallback and retry strategy are
 the caller's responsibility.
 
+### Opt-in custom transport
+
+A server application can supply its own generator. This is never selected by
+default and cannot be serialized through the web component; the endpoint owns
+its authentication and transport:
+
+```ts
+const image = await generateImageBuffer(prompt, width, height, {
+  provider: 'custom',
+  generate: async ({ prompt, width, height, signal }) => {
+    const response = await fetch('http://127.0.0.1:8188/generate', {
+      method: 'POST',
+      signal,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ prompt, width, height }),
+    })
+    if (!response.ok) throw new Error(`local generator failed: ${response.status}`)
+    return {
+      buffer: new Uint8Array(await response.arrayBuffer()),
+      mimeType: 'image/png',
+    }
+  },
+})
+```
+
+The callback must return non-empty image bytes and an `image/*` MIME type. It
+receives an abort signal enforcing the configured `timeoutMs`.
+
 ### Provider routing utilities
 
 For implementing your own fallback strategy:
@@ -149,7 +180,7 @@ async function generateWithFallback(prompt, width, height) {
 | `OPENAI_API_KEY` | — | Required for OpenAI provider |
 | `GEMINI_API_KEY` | — | Required for Gemini provider |
 | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Override OpenAI model |
-| `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` | Override Gemini model |
+| `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` | Override the regular Gemini model; `light` explicitly selects Flash Lite |
 
 ### Minimal server example
 
@@ -196,9 +227,27 @@ import {
   PROVIDER_CANVAS_CAPABILITIES,
   generationCanvasForProvider,
   isRatioSupported,
+  GEMINI_MODEL_CAPABILITIES,
+  assertGeminiGenerationSupported,
   type HeroProvider, type OpenAiRatio, type GeminiRatio,
+  type GeminiImageModel, type GeminiImageSize,
+  type GeminiFlashImageSize, type GeminiFlashLiteImageSize,
 } from 'wc-img-ai/provider-ratios'
 ```
+
+Capabilities are model-specific. In particular, `gemini-3.1-flash-image`
+supports `512`, `1K`, `2K`, and `4K`, while
+`gemini-3.1-flash-lite-image` supports `1K`, `2K`, and `4K`. The exported
+`GenerateOptions` type rejects `light: true` + `512`, and the server validates
+model capabilities before making an API request.
+
+```html
+<ai-img llm="gemini" light endpoint="/api/img" prompt="…"></ai-img>
+```
+
+`light` is currently ignored for other providers. OpenAI has both mini models
+and quality controls, but those represent different trade-offs and are not yet
+silently mapped to this hint.
 
 The `<ai-img>` component validates `llm` + `ratio` against this module before
 making any endpoint call.
@@ -210,7 +259,7 @@ making any endpoint call.
 One POST, server decides everything:
 
 ```
-POST {endpoint}  { prompt, imageId?, width, height, llm?, ratio? }
+POST {endpoint}  { prompt, imageId?, width, height, llm?, ratio?, light? }
 
   imageId given & stored   → 200 { id, url }       no AI call
   imageId missing + prompt → 200 { id, url }       generate (new id)

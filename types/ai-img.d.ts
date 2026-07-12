@@ -1,4 +1,4 @@
-import { LitElement } from "lit";
+import { LitElement } from 'lit';
 export declare class AiImg extends LitElement {
     /**
      * A ready image URL (or data URL). When set, the component acts as a plain
@@ -16,18 +16,25 @@ export declare class AiImg extends LitElement {
     llm: string;
     /** Aspect ratio forwarded to the endpoint and used to derive an omitted height. */
     ratio: string;
+    /** Prefer a faster/lower-cost model when the selected provider supports it. */
+    light: boolean;
+    /** Use the endpoint's subscription-backed transport for this provider. */
+    subscription: boolean;
+    /** Bypass and replace the endpoint's cached generation. */
+    regenerate: boolean;
     /** Shown when the image cannot be resolved (otherwise a 1x1 transparent PNG). */
     fallback: string;
     width: string;
     height: string;
     alt: string;
     /** Durable request state for hosts that attach event listeners after upgrade. */
-    status: "idle" | "loading" | "loaded" | "error";
+    status: 'idle' | 'loading' | 'loaded' | 'error';
     /** Durable endpoint/load error message; also emitted via `ai-image-error`. */
     errorMessage: string;
     /** Durable HTTP status when the endpoint returned a non-success response. */
     errorStatus: number | undefined;
     private imgsrc;
+    private loadingKind;
     private imgAttributes;
     private onFallback;
     private retried;
@@ -48,6 +55,7 @@ export declare class AiImg extends LitElement {
     private resolve;
     private settle;
     private settleFallback;
+    private onImgLoad;
     private dispatchError;
     private onImgError;
     protected render(): import("lit").TemplateResult<1>;
@@ -55,6 +63,6 @@ export declare class AiImg extends LitElement {
 }
 declare global {
     interface HTMLElementTagNameMap {
-        "ai-img": AiImg;
+        'ai-img': AiImg;
     }
 }

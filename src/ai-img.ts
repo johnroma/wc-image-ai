@@ -1,37 +1,37 @@
-import { LitElement, html, css, nothing, unsafeCSS } from "lit"
-import { property, state } from "lit/decorators.js"
-import { spread } from "@open-wc/lit-helpers"
+import { spread } from '@open-wc/lit-helpers'
+import { css, html, LitElement, nothing } from 'lit'
+import { property, state } from 'lit/decorators.js'
 import {
-  resolveImage,
   ResolveImageError,
-  spinner,
+  resolveImage,
   TRANSPARENT_PIXEL,
-} from "./get-generated-image"
-import { isRatioSupported } from "./provider-ratios"
-
-const SPINNER_BG = unsafeCSS(encodeURIComponent(spinner))
+} from './get-generated-image'
+import { isRatioSupported } from './provider-ratios'
 
 // Attributes the component owns — everything else is passed through to <img>.
 const RESERVED_ATTRS = new Set([
-  "endpoint",
-  "prompt",
-  "image-id",
-  "fallback",
-  "width",
-  "height",
-  "llm",
-  "ratio",
-  "class",
-  "style",
-  "loading",
-  "decoding",
-  "src",
+  'endpoint',
+  'prompt',
+  'image-id',
+  'fallback',
+  'width',
+  'height',
+  'llm',
+  'ratio',
+  'light',
+  'subscription',
+  'regenerate',
+  'class',
+  'style',
+  'loading',
+  'decoding',
+  'src',
 ])
 
 const placeholder = (width: string, height: string) =>
-  "data:image/svg+xml;utf8," +
+  'data:image/svg+xml;utf8,' +
   encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="#ddd"/></svg>`
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="#ddd"/></svg>`,
   )
 
 const dimensionsFor = (width: string, height: string, ratio: string) => {
@@ -64,26 +64,36 @@ export class AiImg extends LitElement {
    * <img> and never calls the AI endpoint — use it when you already have the
    * image (e.g. a precomputed/returning one). Highest priority.
    */
-  @property({ type: String }) src = ""
+  @property({ type: String }) src = ''
   /** Server route that owns the API key, generation, storage and lookup. */
-  @property({ type: String }) endpoint = ""
+  @property({ type: String }) endpoint = ''
   /** Description used to generate the image (omit when fetching a known id). */
-  @property({ type: String }) prompt = ""
+  @property({ type: String }) prompt = ''
   /** Storage handle. Reflected after the server mints a new image. */
-  @property({ type: String, attribute: "image-id" }) imageId = ""
+  @property({ type: String, attribute: 'image-id' }) imageId = ''
   /** Provider/model hint forwarded to the endpoint (e.g. "gemini", "openai"). */
-  @property({ type: String }) llm = ""
+  @property({ type: String }) llm = ''
   /** Aspect ratio forwarded to the endpoint and used to derive an omitted height. */
-  @property({ type: String }) ratio = ""
+  @property({ type: String }) ratio = ''
+  /** Prefer a faster/lower-cost model when the selected provider supports it. */
+  @property({ type: Boolean }) light = false
+  /** Use the endpoint's subscription-backed transport for this provider. */
+  @property({ type: Boolean }) subscription = false
+  /** Bypass and replace the endpoint's cached generation. */
+  @property({ type: Boolean }) regenerate = false
   /** Shown when the image cannot be resolved (otherwise a 1x1 transparent PNG). */
-  @property({ type: String }) fallback = ""
-  @property({ type: String, reflect: true }) width = ""
-  @property({ type: String }) height = ""
-  @property({ type: String, reflect: true }) alt = ""
+  @property({ type: String }) fallback = ''
+  @property({ type: String, reflect: true }) width = ''
+  @property({ type: String }) height = ''
+  @property({ type: String, reflect: true }) alt = ''
   /** Durable request state for hosts that attach event listeners after upgrade. */
-  @property({ attribute: false }) status: "idle" | "loading" | "loaded" | "error" = "idle"
+  @property({ attribute: false }) status:
+    | 'idle'
+    | 'loading'
+    | 'loaded'
+    | 'error' = 'idle'
   /** Durable endpoint/load error message; also emitted via `ai-image-error`. */
-  @property({ attribute: false }) errorMessage = ""
+  @property({ attribute: false }) errorMessage = ''
   /** Durable HTTP status when the endpoint returned a non-success response. */
   @property({ attribute: false }) errorStatus: number | undefined
 
@@ -91,14 +101,15 @@ export class AiImg extends LitElement {
   // never flashes the grey generating-placeholder. The grey placeholder is
   // shown only once we know we're actually generating (see start()).
   @state() private imgsrc = TRANSPARENT_PIXEL
+  @state() private loadingKind: 'generation' | 'image' | null = null
 
   private imgAttributes: Record<string, string> = {}
   // Once we've shown the fallback/transparent pixel there's nothing left to
   // retry, so further <img> errors are ignored to avoid loops.
   private onFallback = false
   private retried = false
-  private resolvedUrl = ""
-  private blobUrl = ""
+  private resolvedUrl = ''
+  private blobUrl = ''
 
   connectedCallback() {
     super.connectedCallback()
@@ -111,29 +122,45 @@ export class AiImg extends LitElement {
 
   // Debug helper — call from browser console: document.querySelector('ai-img').debugState()
   debugState() {
-    return { src: this.src, prompt: this.prompt, imageId: this.imageId, status: this.status, blobUrl: this.blobUrl, imgsrc: this.imgsrc }
+    return {
+      src: this.src,
+      prompt: this.prompt,
+      imageId: this.imageId,
+      status: this.status,
+      blobUrl: this.blobUrl,
+      imgsrc: this.imgsrc,
+    }
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
     if (this.blobUrl) {
       URL.revokeObjectURL(this.blobUrl)
-      this.blobUrl = ""
+      this.blobUrl = ''
     }
   }
 
   private start() {
     this.collectPassThroughAttributes()
     const dimensions = dimensionsFor(this.width, this.height, this.ratio)
-    console.log('[ai-img] start()', { src: this.src, prompt: this.prompt?.slice(0, 60), imageId: this.imageId, status: this.status })
+    console.log('[ai-img] start()', {
+      src: this.src,
+      prompt: this.prompt?.slice(0, 60),
+      imageId: this.imageId,
+      status: this.status,
+    })
 
     // A ready src bypasses all AI: behave like a plain <img> (the broken-url
     // retry/fallback still applies, but nothing is fetched or generated). No
     // grey placeholder — it loads straight into the (already reserved) box.
     if (this.src) {
-      console.log('[ai-img] src provided — skipping generation', this.src.slice(0, 80))
+      console.log(
+        '[ai-img] src provided — skipping generation',
+        this.src.slice(0, 80),
+      )
       this.resolvedUrl = this.src
-      this.status = "loaded"
+      this.status = 'loading'
+      this.loadingKind = 'image'
       this.settle(this.src)
       return
     }
@@ -141,15 +168,19 @@ export class AiImg extends LitElement {
     // Nothing to fetch and nothing to generate.
     if (!this.prompt && !this.imageId) {
       console.log('[ai-img] no prompt and no imageId — idle')
-      this.status = "idle"
+      this.status = 'idle'
       this.settleFallback()
       return
     }
 
     // Validate provider+ratio before hitting the endpoint.
     if (this.llm && this.ratio && !isRatioSupported(this.llm, this.ratio)) {
-      console.error(`[ai-img] ratio ${this.ratio} is not supported by provider ${this.llm}`)
-      this.dispatchError(`ratio ${this.ratio} is not supported by provider ${this.llm}`)
+      console.error(
+        `[ai-img] ratio ${this.ratio} is not supported by provider ${this.llm}`,
+      )
+      this.dispatchError(
+        `ratio ${this.ratio} is not supported by provider ${this.llm}`,
+      )
       this.settleFallback()
       return
     }
@@ -157,24 +188,27 @@ export class AiImg extends LitElement {
     // We're going to call the endpoint — now show the grey placeholder + spinner
     // as progress feedback while it resolves.
     console.log('[ai-img] starting generation via', this.endpoint)
-    this.imgsrc = placeholder(dimensions.width || "1", dimensions.height || "1")
-    this.status = "loading"
-    this.errorMessage = ""
+    this.imgsrc = placeholder(dimensions.width || '1', dimensions.height || '1')
+    this.status = 'loading'
+    this.loadingKind = 'generation'
+    this.errorMessage = ''
     this.errorStatus = undefined
     void this.resolve()
   }
 
   private collectPassThroughAttributes() {
+    const nextAttributes: Record<string, string> = {}
     for (const attr of Array.from(this.attributes)) {
       if (!RESERVED_ATTRS.has(attr.name)) {
-        this.imgAttributes[attr.name] = attr.value
+        nextAttributes[attr.name] = attr.value
       }
     }
+    this.imgAttributes = nextAttributes
   }
 
   private async resolve() {
     const dimensions = dimensionsFor(this.width, this.height, this.ratio)
-    let result
+    let result: Awaited<ReturnType<typeof resolveImage>>
     try {
       result = await resolveImage(this.endpoint, {
         prompt: this.prompt,
@@ -183,23 +217,31 @@ export class AiImg extends LitElement {
         height: Number(dimensions.height) || undefined,
         llm: this.llm,
         ratio: this.ratio,
+        light: this.llm === 'gemini' ? this.light : undefined,
+        subscription: this.subscription || undefined,
+        regenerate: this.regenerate || undefined,
       })
     } catch (error) {
       console.error('[ai-img] resolve error', error)
       this.dispatchError(
-        error instanceof Error ? error.message : "image request failed",
-        error instanceof ResolveImageError ? error.status : undefined
+        error instanceof Error ? error.message : 'image request failed',
+        error instanceof ResolveImageError ? error.status : undefined,
       )
       this.settleFallback()
       return
     }
 
-    console.log('[ai-img] resolved', { id: result.id, url: result.url.slice(0, 80), hasBlob: !!result.blob, blobSize: result.blob?.size })
+    console.log('[ai-img] resolved', {
+      id: result.id,
+      url: result.url.slice(0, 80),
+      hasBlob: !!result.blob,
+      blobSize: result.blob?.size,
+    })
 
     // Reflect the server-confirmed/minted id so the DOM stays truthful.
     if (result.id && result.id !== this.imageId) {
       this.imageId = result.id
-      this.setAttribute("image-id", result.id)
+      this.setAttribute('image-id', result.id)
     }
 
     if (result.blob) {
@@ -208,19 +250,27 @@ export class AiImg extends LitElement {
 
     // Hand the id (and url) to the host so it can persist to a database.
     // In blob-proxy mode, `blob` is included so the host can upload it.
-    console.log('[ai-img] dispatching ai-image event', { hasBlob: !!result.blob })
+    console.log('[ai-img] dispatching ai-image event', {
+      hasBlob: !!result.blob,
+    })
     this.dispatchEvent(
-      new CustomEvent("ai-image", {
-        detail: { id: result.id, url: result.url, prompt: this.prompt, blob: result.blob },
+      new CustomEvent('ai-image', {
+        detail: {
+          id: result.id,
+          url: result.url,
+          prompt: this.prompt,
+          blob: result.blob,
+        },
         bubbles: true,
         composed: true,
-      })
+      }),
     )
 
     this.resolvedUrl = result.url
     this.retried = false
     this.onFallback = false
-    this.status = "loaded"
+    this.status = 'loading'
+    this.loadingKind = 'image'
     this.settle(result.url)
   }
 
@@ -230,19 +280,28 @@ export class AiImg extends LitElement {
 
   private settleFallback() {
     this.onFallback = true
+    this.loadingKind = null
     this.settle(this.fallback || TRANSPARENT_PIXEL)
   }
 
+  private onImgLoad = () => {
+    // The generation placeholder is also a data image and emits `load`; only
+    // the actual URL-fetch phase should settle the component.
+    if (this.loadingKind !== 'image') return
+    this.loadingKind = null
+    this.status = 'loaded'
+  }
+
   private dispatchError(message: string, status?: number) {
-    this.status = "error"
+    this.status = 'error'
     this.errorMessage = message
     this.errorStatus = status
     this.dispatchEvent(
-      new CustomEvent("ai-image-error", {
+      new CustomEvent('ai-image-error', {
         detail: { message, status, prompt: this.prompt },
         bubbles: true,
         composed: true,
-      })
+      }),
     )
   }
 
@@ -254,7 +313,7 @@ export class AiImg extends LitElement {
 
     if (!this.retried) {
       this.retried = true
-      const sep = this.resolvedUrl.includes("?") ? "&" : "?"
+      const sep = this.resolvedUrl.includes('?') ? '&' : '?'
       const url = `${this.resolvedUrl}${sep}retry=${Date.now()}`
       setTimeout(() => {
         this.imgsrc = url
@@ -262,8 +321,8 @@ export class AiImg extends LitElement {
       return
     }
 
-    this.resolvedUrl = ""
-    this.dispatchError("generated image URL could not be loaded")
+    this.resolvedUrl = ''
+    this.dispatchError('generated image URL could not be loaded')
     this.settleFallback()
   }
 
@@ -278,16 +337,23 @@ export class AiImg extends LitElement {
         alt=${this.alt}
         width=${dimensions.width || nothing}
         height=${dimensions.height || nothing}
-        style=${dimensions.width && dimensions.height
-          ? `aspect-ratio: ${dimensions.width} / ${dimensions.height}`
-          : nothing}
+        style=${
+          dimensions.width && dimensions.height
+            ? `aspect-ratio: ${dimensions.width} / ${dimensions.height}`
+            : nothing
+        }
         decoding="async"
+        @load=${this.onImgLoad}
         @error=${this.onImgError}
         ${spread(this.imgAttributes)}
       />
-      ${this.status === "loading"
-        ? html`<span class="spinner" aria-hidden="true"></span>`
-        : nothing}
+      ${
+        this.loadingKind === 'generation'
+          ? html`<span class="loader generation-loader" role="status" aria-label="Generating image"><i></i><i></i><i></i></span>`
+          : this.loadingKind === 'image'
+            ? html`<span class="loader image-loader" role="status" aria-label="Loading image"></span>`
+            : nothing
+      }
     `
   }
 
@@ -318,15 +384,84 @@ export class AiImg extends LitElement {
       clip-path: inherit;
     }
 
-    .spinner {
+    .loader {
       position: absolute;
       inset: 0;
       margin: auto;
-      background-image: url("data:image/svg+xml;utf8,${SPINNER_BG}");
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 25%;
       pointer-events: none;
+    }
+
+    /* AI generation: three full-size thinking orbs that rise and soften in
+       sequence. Deliberately organic rather than the mechanical fetch cycle. */
+    .generation-loader {
+      width: 55px;
+      height: 19px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .generation-loader i {
+      width: 15px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: #000;
+      animation: ai-think 1.2s cubic-bezier(.45, 0, .55, 1) infinite;
+    }
+
+    .generation-loader i:nth-child(2) {
+      animation-delay: .16s;
+    }
+
+    .generation-loader i:nth-child(3) {
+      animation-delay: .32s;
+    }
+
+    @keyframes ai-think {
+      0%, 55%, 100% {
+        opacity: .14;
+        transform: translateY(2px) scale(.82);
+      }
+      25% {
+        opacity: 1;
+        transform: translateY(-3px) scale(1);
+      }
+    }
+
+    /* Plain image/CDN fetch: three fixed 15px dots handing the active state
+       from left to right. Based directly on the requested l5 loader. */
+    .image-loader {
+      width: 15px;
+      height: 15px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      animation: image-fetch 1s infinite linear alternate;
+    }
+
+    @keyframes image-fetch {
+      0% {
+        box-shadow: 20px 0 #000, -20px 0 #0002;
+        background: #000;
+      }
+      33% {
+        box-shadow: 20px 0 #000, -20px 0 #0002;
+        background: #0002;
+      }
+      66% {
+        box-shadow: 20px 0 #0002, -20px 0 #000;
+        background: #0002;
+      }
+      100% {
+        box-shadow: 20px 0 #0002, -20px 0 #000;
+        background: #000;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .generation-loader i,
+      .image-loader {
+        animation: none;
+      }
     }
   `
 }
@@ -337,15 +472,12 @@ export class AiImg extends LitElement {
 // import the package EAGERLY (e.g. in a client entry or a server-rendered
 // module) rather than lazily after hydration, so `<ai-img>` is defined before
 // it first renders and a `src` paints with no extra chunk-load delay.
-if (
-  typeof customElements !== "undefined" &&
-  !customElements.get("ai-img")
-) {
-  customElements.define("ai-img", AiImg)
+if (typeof customElements !== 'undefined' && !customElements.get('ai-img')) {
+  customElements.define('ai-img', AiImg)
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "ai-img": AiImg
+    'ai-img': AiImg
   }
 }
