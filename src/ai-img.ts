@@ -6,7 +6,12 @@ import {
   resolveImage,
   TRANSPARENT_PIXEL,
 } from './get-generated-image'
-import { isRatioSupported } from './provider-ratios'
+import {
+  GEMINI_FLASH_IMAGE_MODEL,
+  GEMINI_FLASH_LITE_IMAGE_MODEL,
+  isGeminiRatioSupported,
+  isRatioSupported,
+} from './provider-ratios'
 
 // Attributes the component owns — everything else is passed through to <img>.
 const RESERVED_ATTRS = new Set([
@@ -174,7 +179,16 @@ export class AiImg extends LitElement {
     }
 
     // Validate provider+ratio before hitting the endpoint.
-    if (this.llm && this.ratio && !isRatioSupported(this.llm, this.ratio)) {
+    const ratioSupported =
+      this.llm === 'gemini'
+        ? isGeminiRatioSupported(
+            this.light
+              ? GEMINI_FLASH_LITE_IMAGE_MODEL
+              : GEMINI_FLASH_IMAGE_MODEL,
+            this.ratio,
+          )
+        : isRatioSupported(this.llm, this.ratio)
+    if (this.llm && this.ratio && !ratioSupported) {
       console.error(
         `[ai-img] ratio ${this.ratio} is not supported by provider ${this.llm}`,
       )

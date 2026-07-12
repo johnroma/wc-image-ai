@@ -118,13 +118,28 @@ export const GEMINI_RATIOS = [
   '1:8',
 ] as const
 
+// Flash Lite supports only the standard 10 ratios documented on its model
+// capability page; the extreme 4:1/1:4/8:1/1:8 ratios are Flash-only.
+export const GEMINI_FLASH_LITE_RATIOS = [
+  '1:1',
+  '3:2',
+  '2:3',
+  '4:3',
+  '3:4',
+  '5:4',
+  '4:5',
+  '16:9',
+  '9:16',
+  '21:9',
+] as const satisfies readonly GeminiRatio[]
+
 /** Literal union of every ratio gpt-image-2 accepts. */
 export type OpenAiRatio = (typeof OPENAI_RATIOS)[number]
 /** Literal union of every ratio supported by a known Gemini image model. */
 export type GeminiRatio = (typeof GEMINI_RATIOS)[number]
 
 export const GEMINI_FLASH_IMAGE_SIZES = ['512', '1K', '2K', '4K'] as const
-export const GEMINI_FLASH_LITE_IMAGE_SIZES = ['1K', '2K', '4K'] as const
+export const GEMINI_FLASH_LITE_IMAGE_SIZES = ['1K'] as const
 export type GeminiFlashImageSize = (typeof GEMINI_FLASH_IMAGE_SIZES)[number]
 export type GeminiFlashLiteImageSize =
   (typeof GEMINI_FLASH_LITE_IMAGE_SIZES)[number]
@@ -147,7 +162,7 @@ export const GEMINI_MODEL_CAPABILITIES = {
     defaultImageSize: '1K',
   },
   [GEMINI_FLASH_LITE_IMAGE_MODEL]: {
-    ratios: GEMINI_RATIOS,
+    ratios: GEMINI_FLASH_LITE_RATIOS,
     imageSizes: GEMINI_FLASH_LITE_IMAGE_SIZES,
     defaultImageSize: '1K',
   },
@@ -157,6 +172,16 @@ export function geminiModelCapabilities(
   model: string,
 ): GeminiModelCapabilities | undefined {
   return GEMINI_MODEL_CAPABILITIES[model as GeminiImageModel]
+}
+
+export function isGeminiRatioSupported(
+  model: string,
+  ratio: string,
+): ratio is GeminiRatio {
+  return (
+    geminiModelCapabilities(model)?.ratios.includes(ratio as GeminiRatio) ??
+    false
+  )
 }
 
 export function isGeminiImageSizeSupported(
@@ -181,7 +206,7 @@ export function assertGeminiGenerationSupported(
       `Unknown Gemini image model ${model}; supported models: ${GEMINI_IMAGE_MODELS.join(', ')}`,
     )
   }
-  if (!capabilities.ratios.includes(ratio as GeminiRatio)) {
+  if (!isGeminiRatioSupported(model, ratio)) {
     throw new Error(
       `Aspect ratio ${ratio} is not supported by ${model}; supported ratios: ${capabilities.ratios.join(', ')}`,
     )
@@ -232,7 +257,7 @@ export function nearestGeminiRatio(
   const target = width / height
   let best: GeminiRatio = '1:1'
   let bestDistance = Infinity
-  const supportedRatios = model
+  const supportedRatios: readonly GeminiRatio[] = model
     ? GEMINI_MODEL_CAPABILITIES[model].ratios
     : GEMINI_RATIOS
   for (const [label, ratio] of GEMINI_RATIO_PAIRS) {

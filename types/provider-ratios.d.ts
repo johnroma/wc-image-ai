@@ -50,12 +50,13 @@ export declare function generationCanvasForProvider(provider: HeroProvider, widt
 };
 export declare const OPENAI_RATIOS: readonly ["1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "16:9", "9:16", "21:9", "9:21", "3:1", "1:3"];
 export declare const GEMINI_RATIOS: readonly ["1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "16:9", "9:16", "21:9", "4:1", "1:4", "8:1", "1:8"];
+export declare const GEMINI_FLASH_LITE_RATIOS: readonly ["1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "16:9", "9:16", "21:9"];
 /** Literal union of every ratio gpt-image-2 accepts. */
 export type OpenAiRatio = (typeof OPENAI_RATIOS)[number];
 /** Literal union of every ratio supported by a known Gemini image model. */
 export type GeminiRatio = (typeof GEMINI_RATIOS)[number];
 export declare const GEMINI_FLASH_IMAGE_SIZES: readonly ["512", "1K", "2K", "4K"];
-export declare const GEMINI_FLASH_LITE_IMAGE_SIZES: readonly ["1K", "2K", "4K"];
+export declare const GEMINI_FLASH_LITE_IMAGE_SIZES: readonly ["1K"];
 export type GeminiFlashImageSize = (typeof GEMINI_FLASH_IMAGE_SIZES)[number];
 export type GeminiFlashLiteImageSize = (typeof GEMINI_FLASH_LITE_IMAGE_SIZES)[number];
 export type GeminiImageSize = GeminiFlashImageSize | GeminiFlashLiteImageSize;
@@ -75,12 +76,13 @@ export declare const GEMINI_MODEL_CAPABILITIES: {
         readonly defaultImageSize: "1K";
     };
     readonly "gemini-3.1-flash-lite-image": {
-        readonly ratios: readonly ["1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "16:9", "9:16", "21:9", "4:1", "1:4", "8:1", "1:8"];
-        readonly imageSizes: readonly ["1K", "2K", "4K"];
+        readonly ratios: readonly ["1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "16:9", "9:16", "21:9"];
+        readonly imageSizes: readonly ["1K"];
         readonly defaultImageSize: "1K";
     };
 };
 export declare function geminiModelCapabilities(model: string): GeminiModelCapabilities | undefined;
+export declare function isGeminiRatioSupported(model: string, ratio: string): ratio is GeminiRatio;
 export declare function isGeminiImageSizeSupported(model: string, imageSize: string): imageSize is GeminiImageSize;
 export declare function assertGeminiGenerationSupported(model: string, ratio: string, imageSize?: string): asserts imageSize is GeminiImageSize | undefined;
 export declare const PROVIDER_RATIOS: Readonly<Record<string, ReadonlySet<string>>>;
