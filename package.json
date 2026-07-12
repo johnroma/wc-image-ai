@@ -1,6 +1,6 @@
 {
   "name": "wc-img-ai",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Use AI to generate images for your img tags.",
   "author": {
     "name": "John Romani",
@@ -40,15 +40,26 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && tsc -p tsconfig.server.json && vite build",
+    "build:watch": "sh -c 'tsc --watch & tsc -p tsconfig.server.json --watch & vite build --watch'",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false && tsc -p tsconfig.server.json --noEmit --emitDeclarationOnly false",
+    "lint": "pnpm lint:biome && pnpm lint:eslint",
+    "lint:fix": "pnpm lint:biome:fix && pnpm lint:eslint:fix",
+    "lint:biome": "biome check .",
+    "lint:biome:fix": "biome check --write .",
+    "lint:eslint": "eslint .",
+    "lint:eslint:fix": "eslint . --fix",
     "preview": "vite preview",
     "demo": "node demo/server.mjs"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
+    "@eslint/js": "^9.35.0",
     "@types/node": "^20.19.43",
-    "@typescript-eslint/eslint-plugin": "^6.17.0",
-    "@typescript-eslint/parser": "^6.17.0",
-    "eslint": "^8.56.0",
-    "eslint-plugin-wc": "^2.0.4",
+    "@typescript-eslint/eslint-plugin": "^8.63.0",
+    "@typescript-eslint/parser": "^8.63.0",
+    "eslint": "^9.35.0",
+    "eslint-plugin-wc": "^3.1.0",
+    "globals": "^16.4.0",
     "nanoid": "^5.0.9",
     "typescript": "^5.2.2",
     "vite": "^5.0.8"
@@ -56,7 +67,7 @@
   "dependencies": {
     "@changesets/cli": "^2.27.1",
     "@lit-labs/observers": "^2.0.2",
-    "@open-wc/lit-helpers": "^0.6.0",
+    "@open-wc/lit-helpers": "^0.7.0",
     "lit": "^3.1.0"
   },
   "peerDependencies": {

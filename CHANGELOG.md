@@ -1,5 +1,18 @@
 # wc-img-ai
 
+## 0.4.5
+
+### Patch Changes
+
+- Add explicit `subscription` and `regenerate` request support so hosts can
+  choose transport and force a fresh generation when needed.
+- Improve loading UX with distinct AI-generation vs image-fetch indicators and
+  refine the AI loader sizing/animation.
+- Add Biome and modern ESLint configuration/scripts, restore Lit helper usage
+  with `@open-wc/lit-helpers@0.7.0`, and fix Node typing/typecheck support.
+- Expand provider/server typing around model capabilities and generated-image
+  request handling.
+
 ## 0.3.0
 
 ### Minor Changes

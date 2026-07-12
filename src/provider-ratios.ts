@@ -10,6 +10,18 @@
 
 export type HeroProvider = 'openai' | 'gemini'
 
+export const OPENAI_IMAGE_MODELS = ['gpt-image-2', 'gpt-image-1'] as const
+export type OpenAiImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
+
+export const GEMINI_FLASH_IMAGE_MODEL = 'gemini-3.1-flash-image' as const
+export const GEMINI_FLASH_LITE_IMAGE_MODEL =
+  'gemini-3.1-flash-lite-image' as const
+export const GEMINI_IMAGE_MODELS = [
+  GEMINI_FLASH_IMAGE_MODEL,
+  GEMINI_FLASH_LITE_IMAGE_MODEL,
+] as const
+export type GeminiImageModel = (typeof GEMINI_IMAGE_MODELS)[number]
+
 type PixelCanvasCapabilities = {
   mode: 'pixel-canvas'
   minDimension: number
@@ -75,29 +87,111 @@ export function generationCanvasForProvider(
 
 export const OPENAI_RATIOS = [
   '1:1',
-  '3:2', '2:3',
-  '4:3', '3:4',
-  '5:4', '4:5',
-  '16:9', '9:16',
-  '21:9', '9:21',
-  '3:1', '1:3',
+  '3:2',
+  '2:3',
+  '4:3',
+  '3:4',
+  '5:4',
+  '4:5',
+  '16:9',
+  '9:16',
+  '21:9',
+  '9:21',
+  '3:1',
+  '1:3',
 ] as const
 
 export const GEMINI_RATIOS = [
   '1:1',
-  '3:2', '2:3',
-  '4:3', '3:4',
-  '5:4', '4:5',
-  '16:9', '9:16',
+  '3:2',
+  '2:3',
+  '4:3',
+  '3:4',
+  '5:4',
+  '4:5',
+  '16:9',
+  '9:16',
   '21:9',
-  '4:1', '1:4',
-  '8:1', '1:8',
+  '4:1',
+  '1:4',
+  '8:1',
+  '1:8',
 ] as const
 
 /** Literal union of every ratio gpt-image-2 accepts. */
 export type OpenAiRatio = (typeof OPENAI_RATIOS)[number]
-/** Literal union of every ratio Gemini accepts. */
+/** Literal union of every ratio supported by a known Gemini image model. */
 export type GeminiRatio = (typeof GEMINI_RATIOS)[number]
+
+export const GEMINI_FLASH_IMAGE_SIZES = ['512', '1K', '2K', '4K'] as const
+export const GEMINI_FLASH_LITE_IMAGE_SIZES = ['1K', '2K', '4K'] as const
+export type GeminiFlashImageSize = (typeof GEMINI_FLASH_IMAGE_SIZES)[number]
+export type GeminiFlashLiteImageSize =
+  (typeof GEMINI_FLASH_LITE_IMAGE_SIZES)[number]
+export type GeminiImageSize = GeminiFlashImageSize | GeminiFlashLiteImageSize
+
+export type GeminiModelCapabilities = {
+  readonly ratios: readonly GeminiRatio[]
+  readonly imageSizes: readonly GeminiImageSize[]
+  readonly defaultImageSize: GeminiImageSize
+}
+
+/**
+ * Model-specific Gemini request capabilities. Keep API constraints here rather
+ * than scattering model-name checks through server and application code.
+ */
+export const GEMINI_MODEL_CAPABILITIES = {
+  [GEMINI_FLASH_IMAGE_MODEL]: {
+    ratios: GEMINI_RATIOS,
+    imageSizes: GEMINI_FLASH_IMAGE_SIZES,
+    defaultImageSize: '1K',
+  },
+  [GEMINI_FLASH_LITE_IMAGE_MODEL]: {
+    ratios: GEMINI_RATIOS,
+    imageSizes: GEMINI_FLASH_LITE_IMAGE_SIZES,
+    defaultImageSize: '1K',
+  },
+} as const satisfies Record<GeminiImageModel, GeminiModelCapabilities>
+
+export function geminiModelCapabilities(
+  model: string,
+): GeminiModelCapabilities | undefined {
+  return GEMINI_MODEL_CAPABILITIES[model as GeminiImageModel]
+}
+
+export function isGeminiImageSizeSupported(
+  model: string,
+  imageSize: string,
+): imageSize is GeminiImageSize {
+  return (
+    geminiModelCapabilities(model)?.imageSizes.includes(
+      imageSize as GeminiImageSize,
+    ) ?? false
+  )
+}
+
+export function assertGeminiGenerationSupported(
+  model: string,
+  ratio: string,
+  imageSize?: string,
+): asserts imageSize is GeminiImageSize | undefined {
+  const capabilities = geminiModelCapabilities(model)
+  if (!capabilities) {
+    throw new Error(
+      `Unknown Gemini image model ${model}; supported models: ${GEMINI_IMAGE_MODELS.join(', ')}`,
+    )
+  }
+  if (!capabilities.ratios.includes(ratio as GeminiRatio)) {
+    throw new Error(
+      `Aspect ratio ${ratio} is not supported by ${model}; supported ratios: ${capabilities.ratios.join(', ')}`,
+    )
+  }
+  if (imageSize && !isGeminiImageSizeSupported(model, imageSize)) {
+    throw new Error(
+      `Image size ${imageSize} is not supported by ${model}; supported sizes: ${capabilities.imageSizes.join(', ')}`,
+    )
+  }
+}
 
 export const PROVIDER_RATIOS: Readonly<Record<string, ReadonlySet<string>>> = {
   openai: new Set<string>(OPENAI_RATIOS),
@@ -130,11 +224,19 @@ const GEMINI_RATIO_PAIRS = GEMINI_RATIOS.map((r) => {
 })
 
 /** The nearest Gemini aspect-ratio string for a given pixel canvas. */
-export function nearestGeminiRatio(width: number, height: number): string {
+export function nearestGeminiRatio(
+  width: number,
+  height: number,
+  model?: GeminiImageModel,
+): GeminiRatio {
   const target = width / height
-  let best = '1:1'
+  let best: GeminiRatio = '1:1'
   let bestDistance = Infinity
+  const supportedRatios = model
+    ? GEMINI_MODEL_CAPABILITIES[model].ratios
+    : GEMINI_RATIOS
   for (const [label, ratio] of GEMINI_RATIO_PAIRS) {
+    if (!supportedRatios.includes(label)) continue
     const distance = Math.abs(Math.log(ratio / target))
     if (distance < bestDistance) {
       bestDistance = distance

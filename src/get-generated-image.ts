@@ -1,12 +1,15 @@
-export const spinner = `<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><style>.a{animation:b .8s linear infinite;fill:#888}.c{animation-delay:-.65s}.d{animation-delay:-.5s}@keyframes b{93.75%,100%{r:3px}46.875%{r:.2px}}</style><circle class="a" cx="4" cy="12" r="3"/><circle class="a c" cx="12" cy="12" r="3"/><circle class="a d" cx="20" cy="12" r="3"/></svg>`
+export const spinner = `<svg width="32" height="16" viewBox="0 0 32 16" xmlns="http://www.w3.org/2000/svg"><style>.d{fill:#777;transform-origin:center;animation:think 1.05s cubic-bezier(.4,0,.2,1) infinite}.b{animation-delay:.14s}.c{animation-delay:.28s}@keyframes think{0%,60%,100%{opacity:.28;transform:translateY(0) scale(.72)}30%{opacity:1;transform:translateY(-2px) scale(1)}}</style><circle class="d" cx="8" cy="9" r="1.8"/><circle class="d b" cx="16" cy="9" r="1.8"/><circle class="d c" cx="24" cy="9" r="1.8"/></svg>`
+
+/** Image-transfer glyph: a framed landscape with a scanning highlight. */
+export const imageLoader = `<svg width="32" height="24" viewBox="0 0 32 24" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="f"><rect x="4" y="3" width="24" height="18" rx="3"/></clipPath><linearGradient id="s" x1="0" x2="1"><stop stop-color="#888" stop-opacity="0"/><stop offset=".5" stop-color="#888" stop-opacity=".55"/><stop offset="1" stop-color="#888" stop-opacity="0"/></linearGradient></defs><g fill="none" stroke="#888" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="24" height="18" rx="3" opacity=".65"/><circle cx="21.5" cy="8.5" r="1.5" opacity=".65"/><path d="m7 18 6-6 4 4 2-2 6 4" opacity=".65"/></g><g clip-path="url(#f)"><rect class="scan" x="-12" y="3" width="12" height="18" fill="url(#s)" transform="skewX(-12)"/></g><style>.scan{animation:scan 1.35s cubic-bezier(.4,0,.2,1) infinite}@keyframes scan{0%{transform:translateX(-8px) skewX(-12deg)}70%,100%{transform:translateX(52px) skewX(-12deg)}}</style></svg>`
 
 // A neutral grey 1×1 SVG. Used as the initial imgsrc and the final dead-end
 // fallback when nothing else resolves: the <img> loads cleanly (no broken icon,
 // no network) while the host box still honours width/height.
 export const TRANSPARENT_PIXEL =
-  "data:image/svg+xml;utf8," +
+  'data:image/svg+xml;utf8,' +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="#ccc"/></svg>'
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="#ccc"/></svg>',
   )
 
 export interface ResolveImageRequest {
@@ -18,6 +21,12 @@ export interface ResolveImageRequest {
   llm?: string
   /** Aspect ratio forwarded to the endpoint (e.g. "16:9", "4:1"). */
   ratio?: string
+  /** Prefer a faster/lower-cost model when the selected provider supports it. */
+  light?: boolean
+  /** Use a locally configured subscription transport instead of API billing. */
+  subscription?: boolean
+  /** Bypass and replace any cache entry for this generation identity. */
+  regenerate?: boolean
 }
 
 export interface ResolvedImage {
@@ -31,26 +40,27 @@ export interface ResolvedImage {
 export class ResolveImageError extends Error {
   constructor(
     message: string,
-    public readonly status?: number
+    public readonly status?: number,
   ) {
     super(message)
-    this.name = "ResolveImageError"
+    this.name = 'ResolveImageError'
   }
 }
 
 const errorMessageFrom = async (response: Response) => {
   try {
-    const data = (await response.json()) as
-      | { error?: { message?: unknown } | string; message?: unknown }
-      | null
+    const data = (await response.json()) as {
+      error?: { message?: unknown } | string
+      message?: unknown
+    } | null
     const message =
-      typeof data?.error === "string"
+      typeof data?.error === 'string'
         ? data.error
-        : typeof data?.error?.message === "string"
+        : typeof data?.error?.message === 'string'
           ? data.error.message
-          : typeof data?.message === "string"
+          : typeof data?.message === 'string'
             ? data.message
-            : ""
+            : ''
     if (message) return message
   } catch {
     // The endpoint may return a non-JSON error response.
@@ -69,15 +79,15 @@ const errorMessageFrom = async (response: Response) => {
  */
 export const resolveImage = async (
   endpoint: string,
-  req: ResolveImageRequest
+  req: ResolveImageRequest,
 ): Promise<ResolvedImage> => {
-  if (!endpoint) throw new ResolveImageError("ai-img endpoint is required")
+  if (!endpoint) throw new ResolveImageError('ai-img endpoint is required')
 
   let response: Response
   try {
     response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         prompt: req.prompt || undefined,
         imageId: req.imageId || undefined,
@@ -85,44 +95,50 @@ export const resolveImage = async (
         height: req.height || undefined,
         llm: req.llm || undefined,
         ratio: req.ratio || undefined,
+        light: req.light || undefined,
+        subscription: req.subscription || undefined,
+        regenerate: req.regenerate || undefined,
       }),
     })
   } catch (error) {
     throw new ResolveImageError(
-      error instanceof Error ? error.message : "image request failed"
+      error instanceof Error ? error.message : 'image request failed',
     )
   }
 
   if (!response.ok) {
     throw new ResolveImageError(
       await errorMessageFrom(response),
-      response.status
+      response.status,
     )
   }
 
   // Blob-proxy mode: endpoint owns only generation and returns raw bytes.
   // The host receives the blob via the `ai-image` event and uploads it
   // separately to a storage endpoint.
-  const contentType = response.headers.get("content-type") ?? ""
-  if (contentType.startsWith("image/")) {
+  const contentType = response.headers.get('content-type') ?? ''
+  if (contentType.startsWith('image/')) {
     const blob = await response.blob()
     const url = URL.createObjectURL(blob)
-    return { id: "", url, blob }
+    return { id: '', url, blob }
   }
 
   let data: Partial<ResolvedImage> | null
   try {
     data = (await response.json()) as Partial<ResolvedImage> | null
   } catch {
-    throw new ResolveImageError("image endpoint returned invalid JSON", response.status)
-  }
-
-  if (!data || typeof data.url !== "string" || data.url.length === 0) {
     throw new ResolveImageError(
-      "image endpoint response is missing a URL",
-      response.status
+      'image endpoint returned invalid JSON',
+      response.status,
     )
   }
 
-  return { id: typeof data.id === "string" ? data.id : "", url: data.url }
+  if (!data || typeof data.url !== 'string' || data.url.length === 0) {
+    throw new ResolveImageError(
+      'image endpoint response is missing a URL',
+      response.status,
+    )
+  }
+
+  return { id: typeof data.id === 'string' ? data.id : '', url: data.url }
 }

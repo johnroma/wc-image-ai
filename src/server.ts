@@ -14,40 +14,104 @@
  */
 
 import {
-  PROVIDER_CANVAS_CAPABILITIES,
-  withinOpenaiRatio,
-  openaiGenerationSize,
-  nearestGeminiRatio,
+  assertGeminiGenerationSupported,
+  GEMINI_FLASH_IMAGE_MODEL,
+  GEMINI_FLASH_LITE_IMAGE_MODEL,
+  type GeminiFlashImageSize,
+  type GeminiFlashLiteImageSize,
+  type GeminiImageModel,
+  type GeminiImageSize,
+  type GeminiRatio,
+  geminiModelCapabilities,
   type HeroProvider,
+  nearestGeminiRatio,
+  type OpenAiImageModel,
+  openaiGenerationSize,
+  withinOpenaiRatio,
 } from './provider-ratios.js'
 
-export { withinOpenaiRatio, openaiGenerationSize, nearestGeminiRatio }
+export type {
+  GeminiImageModel,
+  GeminiImageSize,
+  GeminiRatio,
+  OpenAiImageModel,
+} from './provider-ratios.js'
+export {
+  assertGeminiGenerationSupported,
+  geminiModelCapabilities,
+  nearestGeminiRatio,
+  openaiGenerationSize,
+  withinOpenaiRatio,
+}
 
 const OPENAI_BASE = 'https://api.openai.com/v1'
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
-const DEFAULT_OPENAI_MODEL = 'gpt-image-2'
-const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-image'
+const DEFAULT_OPENAI_MODEL: OpenAiImageModel = 'gpt-image-2'
+const DEFAULT_GEMINI_MODEL: GeminiImageModel = GEMINI_FLASH_IMAGE_MODEL
 const MAX_OUTPUT_DIMENSION = 4096
 
-export type GenerateOptions = {
+type BuiltinGenerateOptionsBase = {
   /** Which provider to call. Defaults to `'openai'`. */
   provider?: HeroProvider
   /** Explicit aspect-ratio string forwarded to Gemini (e.g. `'16:9'`).
    *  When omitted, the nearest supported ratio is derived from width/height. */
-  aspectRatio?: string
+  aspectRatio?: GeminiRatio
   /** Override the OpenAI model. Falls back to `OPENAI_IMAGE_MODEL` env var,
    *  then `gpt-image-2`. */
-  openaiModel?: string
-  /** Override the Gemini model. Falls back to `GEMINI_IMAGE_MODEL` env var,
-   *  then `gemini-3.1-flash-image`. */
-  geminiModel?: string
-  /** Explicit Gemini output-size tier (`'512'`, `'1K'`, `'2K'`).
-   *  When omitted, size is derived automatically from the requested dimensions.
-   *  Note: `'512'` is only supported by `gemini-3.1-flash-image`. */
-  geminiImageSize?: string
+  openaiModel?: OpenAiImageModel
   /** Per-request timeout in milliseconds. Defaults to 90 000 (90 s). */
   timeoutMs?: number
 }
+
+type GeminiFlashOptions = {
+  /** Regular Gemini Flash is selected when light is absent or false. */
+  light?: false
+  geminiModel?: typeof GEMINI_FLASH_IMAGE_MODEL
+  geminiImageSize?: GeminiFlashImageSize
+}
+
+type GeminiFlashLiteOptions = {
+  /** Select the faster/lower-cost Flash Lite model. */
+  light: true
+  geminiModel?: typeof GEMINI_FLASH_LITE_IMAGE_MODEL
+  geminiImageSize?: GeminiFlashLiteImageSize
+}
+
+/**
+ * Generation options with model-specific Gemini image-size constraints.
+ * The 512 tier cannot be paired with `light: true`, because Flash Lite starts
+ * at 1K. Explicit model names remain available for server-side configuration.
+ */
+export type BuiltinGenerateOptions = BuiltinGenerateOptionsBase &
+  (GeminiFlashOptions | GeminiFlashLiteOptions)
+
+export type CustomGenerateRequest = {
+  prompt: string
+  width: number
+  height: number
+  /** Aborts when timeoutMs elapses. Custom generators should pass this signal
+   *  to fetch, child-process handling, or other cancellable work. */
+  signal: AbortSignal
+}
+
+export type CustomGenerateResult = {
+  buffer: Uint8Array
+  mimeType: `image/${string}`
+}
+
+export type CustomImageGenerator = (
+  request: CustomGenerateRequest,
+) => Promise<CustomGenerateResult>
+
+export type CustomGenerateOptions = {
+  provider: 'custom'
+  generate: CustomImageGenerator
+  /** Per-request timeout in milliseconds. Defaults to 90 000 (90 s). */
+  timeoutMs?: number
+}
+
+/** Built-in provider configuration or an explicitly selected custom transport. */
+export type GenerateOptions = BuiltinGenerateOptions | CustomGenerateOptions
 
 export type GeneratedBuffer = {
   buffer: Buffer
@@ -67,6 +131,42 @@ function outputDimension(value: unknown): number | undefined {
 
 // --- Provider implementations ---
 
+async function callCustom(
+  generate: CustomImageGenerator,
+  prompt: string,
+  width: number,
+  height: number,
+  timeoutMs: number,
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const signal = AbortSignal.timeout(timeoutMs)
+  const aborted = new Promise<never>((_, reject) => {
+    signal.addEventListener(
+      'abort',
+      () =>
+        reject(signal.reason ?? new Error('custom image generation timed out')),
+      { once: true },
+    )
+  })
+  const result = await Promise.race([
+    generate({ prompt, width, height, signal }),
+    aborted,
+  ])
+  if (
+    !(result.buffer instanceof Uint8Array) ||
+    result.buffer.byteLength === 0
+  ) {
+    throw new Error(
+      'Custom image generator returned an empty or invalid buffer',
+    )
+  }
+  if (!result.mimeType.startsWith('image/')) {
+    throw new Error(
+      `Custom image generator returned invalid MIME type: ${result.mimeType}`,
+    )
+  }
+  return { buffer: Buffer.from(result.buffer), mimeType: result.mimeType }
+}
+
 async function callOpenAI(
   prompt: string,
   size: string,
@@ -78,7 +178,10 @@ async function callOpenAI(
 
   const response = await fetch(`${OPENAI_BASE}/images/generations`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({ model, prompt, n: 1, size }),
     signal: AbortSignal.timeout(timeoutMs),
   })
@@ -95,7 +198,9 @@ async function callOpenAI(
     throw new Error(message)
   }
 
-  const data = (await response.json()) as { data?: Array<{ b64_json?: string }> }
+  const data = (await response.json()) as {
+    data?: Array<{ b64_json?: string }>
+  }
   const base64 = data?.data?.[0]?.b64_json
   if (!base64) throw new Error(`OpenAI ${model} returned no image data`)
   return { buffer: Buffer.from(base64, 'base64'), mimeType: 'image/png' }
@@ -107,31 +212,41 @@ async function callGemini(
   height: number,
   model: string,
   timeoutMs: number,
-  explicitRatio?: string,
-  explicitImageSize?: string,
+  explicitRatio?: GeminiRatio,
+  explicitImageSize?: GeminiImageSize,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set')
 
-  const response = await fetch(`${GEMINI_BASE}/models/${model}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: {
-          aspectRatio: explicitRatio ?? nearestGeminiRatio(width, height),
-          ...(explicitImageSize != null
-            ? { imageSize: explicitImageSize }
-            : Math.max(width, height) > PROVIDER_CANVAS_CAPABILITIES.gemini.imageSize2KThreshold
-              ? { imageSize: '2K' }
-              : {}),
+  const capabilities = geminiModelCapabilities(model)
+  const ratio = explicitRatio ?? nearestGeminiRatio(width, height)
+  const requestedSize =
+    explicitImageSize ??
+    (Math.max(width, height) > 2048
+      ? '4K'
+      : Math.max(width, height) > 1024
+        ? '2K'
+        : capabilities?.defaultImageSize)
+  assertGeminiGenerationSupported(model, ratio, requestedSize)
+
+  const response = await fetch(
+    `${GEMINI_BASE}/models/${model}:generateContent`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: {
+            aspectRatio: ratio,
+            imageSize: requestedSize,
+          },
         },
-      },
-    }),
-    signal: AbortSignal.timeout(timeoutMs),
-  })
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    },
+  )
 
   if (!response.ok) {
     const text = (await response.text()).trim()
@@ -147,13 +262,18 @@ async function callGemini(
 
   const data = (await response.json()) as {
     candidates?: Array<{
-      content?: { parts?: Array<{ inlineData?: { data: string; mimeType?: string } }> }
+      content?: {
+        parts?: Array<{ inlineData?: { data: string; mimeType?: string } }>
+      }
     }>
   }
   const parts = data?.candidates?.[0]?.content?.parts ?? []
   const inline = parts.find((p) => p.inlineData)?.inlineData
   if (!inline) throw new Error(`Gemini ${model} returned no image data`)
-  return { buffer: Buffer.from(inline.data, 'base64'), mimeType: inline.mimeType ?? 'image/jpeg' }
+  return {
+    buffer: Buffer.from(inline.data, 'base64'),
+    mimeType: inline.mimeType ?? 'image/jpeg',
+  }
 }
 
 // --- Public API ---
@@ -176,22 +296,47 @@ export async function generateImageBuffer(
   const w = requestedWidth ?? 1024
   const h = requestedHeight ?? 1024
   const timeoutMs = options.timeoutMs ?? 90_000
-  const provider = options.provider ?? 'openai'
 
   let result: { buffer: Buffer; mimeType: string }
 
-  if (provider === 'openai') {
-    const model = options.openaiModel ?? process.env.OPENAI_IMAGE_MODEL ?? DEFAULT_OPENAI_MODEL
+  if (options.provider === 'custom') {
+    result = await callCustom(options.generate, prompt, w, h, timeoutMs)
+  } else if ((options.provider ?? 'openai') === 'openai') {
+    const model =
+      options.openaiModel ??
+      process.env.OPENAI_IMAGE_MODEL ??
+      DEFAULT_OPENAI_MODEL
     if (!withinOpenaiRatio(w, h)) {
       throw new Error(`${w}x${h} exceeds ${model}'s 3:1 aspect-ratio limit`)
     }
-    result = await callOpenAI(prompt, openaiGenerationSize(w, h), model, timeoutMs)
-  } else if (provider === 'gemini') {
-    const model = options.geminiModel ?? process.env.GEMINI_IMAGE_MODEL ?? DEFAULT_GEMINI_MODEL
-    result = await callGemini(prompt, w, h, model, timeoutMs, options.aspectRatio, options.geminiImageSize)
+    result = await callOpenAI(
+      prompt,
+      openaiGenerationSize(w, h),
+      model,
+      timeoutMs,
+    )
+  } else if (options.provider === 'gemini') {
+    const model =
+      options.geminiModel ??
+      (options.light
+        ? GEMINI_FLASH_LITE_IMAGE_MODEL
+        : (process.env.GEMINI_IMAGE_MODEL ?? DEFAULT_GEMINI_MODEL))
+    result = await callGemini(
+      prompt,
+      w,
+      h,
+      model,
+      timeoutMs,
+      options.aspectRatio,
+      options.geminiImageSize,
+    )
   } else {
-    throw new Error(`Unknown provider: ${provider satisfies never}`)
+    throw new Error(`Unknown provider: ${String(options.provider)}`)
   }
 
-  return { ...result, width: requestedWidth ?? null, height: requestedHeight ?? null }
+  return {
+    ...result,
+    width: requestedWidth ?? null,
+    height: requestedHeight ?? null,
+  }
 }

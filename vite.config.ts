@@ -1,4 +1,4 @@
-import { defineConfig } from "vite"
+import { defineConfig } from 'vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -6,11 +6,11 @@ export default defineConfig({
     minify: false,
     lib: {
       entry: {
-        "wc-img-ai": "src/ai-img.ts",
-        "provider-ratios": "src/provider-ratios.ts",
-        "server": "src/server.ts",
+        'wc-img-ai': 'src/ai-img.ts',
+        'provider-ratios': 'src/provider-ratios.ts',
+        server: 'src/server.ts',
       },
-      formats: ["es"],
+      formats: ['es'],
     },
   },
 })
