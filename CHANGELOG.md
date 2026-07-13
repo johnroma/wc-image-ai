@@ -1,5 +1,11 @@
 # wc-img-ai
 
+## 0.5.1
+
+### Patch Changes
+
+- Fix package publishing so the tarball includes built `dist/` files required by the export map, including `wc-img-ai/server`.
+
 ## 0.4.5
 
 ### Patch Changes

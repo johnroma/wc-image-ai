@@ -1,6 +1,6 @@
 {
   "name": "wc-img-ai",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Use AI to generate images for your img tags.",
   "author": {
     "name": "John Romani",
@@ -18,7 +18,10 @@
   "license": "MIT",
   "files": [
     "dist",
-    "types"
+    "types/ai-img.d.ts",
+    "types/provider-ratios.d.ts",
+    "types/server.d.ts",
+    "types/get-generated-image.d.ts"
   ],
   "main": "./dist/wc-img-ai.js",
   "types": "./types/ai-img.d.ts",
@@ -49,7 +52,8 @@
     "lint:eslint": "eslint .",
     "lint:eslint:fix": "eslint . --fix",
     "preview": "vite preview",
-    "demo": "node demo/server.mjs"
+    "demo": "node demo/server.mjs",
+    "prepack": "pnpm build"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
