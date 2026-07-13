@@ -1,4 +1,4 @@
-import { LitElement } from 'lit';
+import { LitElement, type PropertyValues } from 'lit';
 export declare class AiImg extends LitElement {
     /**
      * A ready image URL (or data URL). When set, the component acts as a plain
@@ -40,7 +40,10 @@ export declare class AiImg extends LitElement {
     private retried;
     private resolvedUrl;
     private blobUrl;
+    private activeResolveToken;
     connectedCallback(): void;
+    protected updated(changed: PropertyValues<this>): void;
+    refresh(): void;
     debugState(): {
         src: string;
         prompt: string;
@@ -54,6 +57,7 @@ export declare class AiImg extends LitElement {
     private collectPassThroughAttributes;
     private resolve;
     private settle;
+    private dispatchStatus;
     private settleFallback;
     private onImgLoad;
     private dispatchError;

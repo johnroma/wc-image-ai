@@ -25,6 +25,28 @@ export interface ResolvedImage {
      *  The host is responsible for uploading this to a storage endpoint. */
     blob?: Blob;
 }
+export interface PendingImageResponse extends Record<string, unknown> {
+    id?: string;
+    status: 'pending' | 'processing';
+    statusUrl?: string;
+}
+export interface FailedImageResponse extends Record<string, unknown> {
+    id?: string;
+    status: 'error';
+    error?: string;
+}
+export type ResolveImageStatusEvent = PendingImageResponse | FailedImageResponse | ({
+    id?: string;
+    status: 'completed';
+    url: string;
+} & Partial<ResolvedImage>);
+export interface ResolveImageOptions {
+    pollIntervalMs?: number;
+    maxPollAttempts?: number;
+    onStatus?: (event: ResolveImageStatusEvent & {
+        attempt: number;
+    }) => void;
+}
 export declare class ResolveImageError extends Error {
     readonly status?: number | undefined;
     constructor(message: string, status?: number | undefined);
@@ -37,4 +59,4 @@ export declare class ResolveImageError extends Error {
  * Resolves to `{ id, url }` on success and throws `ResolveImageError` with the
  * endpoint's message/status on failure.
  */
-export declare const resolveImage: (endpoint: string, req: ResolveImageRequest) => Promise<ResolvedImage>;
+export declare const resolveImage: (endpoint: string, req: ResolveImageRequest, options?: ResolveImageOptions) => Promise<ResolvedImage>;

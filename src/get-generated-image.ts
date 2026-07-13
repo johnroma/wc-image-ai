@@ -37,6 +37,29 @@ export interface ResolvedImage {
   blob?: Blob
 }
 
+export interface PendingImageResponse extends Record<string, unknown> {
+  id?: string
+  status: 'pending' | 'processing'
+  statusUrl?: string
+}
+
+export interface FailedImageResponse extends Record<string, unknown> {
+  id?: string
+  status: 'error'
+  error?: string
+}
+
+export type ResolveImageStatusEvent =
+  | PendingImageResponse
+  | FailedImageResponse
+  | ({ id?: string; status: 'completed'; url: string } & Partial<ResolvedImage>)
+
+export interface ResolveImageOptions {
+  pollIntervalMs?: number
+  maxPollAttempts?: number
+  onStatus?: (event: ResolveImageStatusEvent & { attempt: number }) => void
+}
+
 export class ResolveImageError extends Error {
   constructor(
     message: string,
@@ -69,6 +92,131 @@ const errorMessageFrom = async (response: Response) => {
   return `image request failed with HTTP ${response.status}`
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const readJson = async (response: Response) => {
+  try {
+    return (await response.json()) as Record<string, unknown> | null
+  } catch {
+    throw new ResolveImageError(
+      'image endpoint returned invalid JSON',
+      response.status,
+    )
+  }
+}
+
+const hasUrl = (
+  data: Record<string, unknown> | null,
+): data is { id?: string; url: string } =>
+  !!data && typeof data.url === 'string' && data.url.length > 0
+
+const isPending = (
+  data: Record<string, unknown> | null,
+): data is PendingImageResponse =>
+  !!data &&
+  (data.status === 'pending' || data.status === 'processing') &&
+  (typeof data.statusUrl === 'undefined' ||
+    (typeof data.statusUrl === 'string' && data.statusUrl.length > 0))
+
+const isFailed = (
+  data: Record<string, unknown> | null,
+): data is FailedImageResponse =>
+  !!data &&
+  data.status === 'error' &&
+  (typeof data.error === 'string' || typeof data.error === 'undefined')
+
+const resolveStatusUrl = (endpoint: string, statusUrl: string) => {
+  const endpointBase = (() => {
+    try {
+      return new URL(
+        endpoint,
+        globalThis.location?.href ??
+          globalThis.document?.baseURI ??
+          'http://localhost',
+      ).toString()
+    } catch {
+      return (
+        globalThis.location?.href ??
+        globalThis.document?.baseURI ??
+        'http://localhost'
+      )
+    }
+  })()
+
+  return new URL(statusUrl, endpointBase).toString()
+}
+
+const pollPendingImage = async (
+  endpoint: string,
+  initial: PendingImageResponse,
+  options: ResolveImageOptions,
+): Promise<ResolvedImage> => {
+  const pollIntervalMs = Math.max(250, options.pollIntervalMs ?? 1500)
+  const maxPollAttempts = Math.max(1, options.maxPollAttempts ?? 120)
+  let pending = initial
+
+  for (let attempt = 1; attempt <= maxPollAttempts; attempt += 1) {
+    options.onStatus?.({ ...pending, attempt })
+
+    const statusUrl = pending.statusUrl ?? initial.statusUrl
+    if (!statusUrl) {
+      throw new ResolveImageError(
+        'image endpoint response is missing a status URL',
+      )
+    }
+
+    const resolvedStatusUrl = resolveStatusUrl(endpoint, statusUrl)
+    const response = await fetch(resolvedStatusUrl, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    })
+
+    const data = await readJson(response)
+
+    if (!response.ok && !isFailed(data)) {
+      throw new ResolveImageError(
+        await errorMessageFrom(response),
+        response.status,
+      )
+    }
+
+    if (hasUrl(data)) {
+      options.onStatus?.({
+        id: typeof data.id === 'string' ? data.id : pending.id,
+        status: 'completed',
+        url: data.url,
+        attempt,
+      })
+      return {
+        id: typeof data.id === 'string' ? data.id : (pending.id ?? ''),
+        url: data.url,
+      }
+    }
+
+    if (isFailed(data)) {
+      options.onStatus?.({ ...data, attempt })
+      throw new ResolveImageError(
+        data.error || 'image generation failed',
+        response.status,
+      )
+    }
+
+    if (!isPending(data)) {
+      throw new ResolveImageError(
+        'image endpoint response is missing a URL',
+        response.status,
+      )
+    }
+
+    pending = data
+    await sleep(Math.min(pollIntervalMs + (attempt - 1) * 250, 5000))
+  }
+
+  throw new ResolveImageError(
+    `image generation timed out after ${maxPollAttempts} status checks`,
+  )
+}
+
 /**
  * Sends a single POST to the endpoint and lets the server decide whether to
  * return an already-stored image (looked up by `imageId`) or generate a new
@@ -80,6 +228,7 @@ const errorMessageFrom = async (response: Response) => {
 export const resolveImage = async (
   endpoint: string,
   req: ResolveImageRequest,
+  options: ResolveImageOptions = {},
 ): Promise<ResolvedImage> => {
   if (!endpoint) throw new ResolveImageError('ai-img endpoint is required')
 
@@ -123,22 +272,28 @@ export const resolveImage = async (
     return { id: '', url, blob }
   }
 
-  let data: Partial<ResolvedImage> | null
-  try {
-    data = (await response.json()) as Partial<ResolvedImage> | null
-  } catch {
+  const data = await readJson(response)
+
+  if (hasUrl(data)) {
+    return {
+      id: typeof data.id === 'string' ? data.id : '',
+      url: data.url,
+    }
+  }
+
+  if (isPending(data)) {
+    return pollPendingImage(endpoint, data, options)
+  }
+
+  if (isFailed(data)) {
     throw new ResolveImageError(
-      'image endpoint returned invalid JSON',
+      data.error || 'image generation failed',
       response.status,
     )
   }
 
-  if (!data || typeof data.url !== 'string' || data.url.length === 0) {
-    throw new ResolveImageError(
-      'image endpoint response is missing a URL',
-      response.status,
-    )
-  }
-
-  return { id: typeof data.id === 'string' ? data.id : '', url: data.url }
+  throw new ResolveImageError(
+    'image endpoint response is missing a URL',
+    response.status,
+  )
 }

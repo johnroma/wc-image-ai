@@ -1,8 +1,9 @@
 import { spread } from '@open-wc/lit-helpers'
-import { css, html, LitElement, nothing } from 'lit'
+import { css, html, LitElement, nothing, type PropertyValues } from 'lit'
 import { property, state } from 'lit/decorators.js'
 import {
   ResolveImageError,
+  type ResolveImageStatusEvent,
   resolveImage,
   TRANSPARENT_PIXEL,
 } from './get-generated-image'
@@ -115,6 +116,7 @@ export class AiImg extends LitElement {
   private retried = false
   private resolvedUrl = ''
   private blobUrl = ''
+  private activeResolveToken = 0
 
   connectedCallback() {
     super.connectedCallback()
@@ -123,6 +125,30 @@ export class AiImg extends LitElement {
     // prop/attribute for this commit — `src`/`prompt` can land just after
     // connectedCallback. A microtask runs after the synchronous commit.
     queueMicrotask(() => this.start())
+  }
+
+  protected updated(changed: PropertyValues<this>) {
+    const shouldRestart =
+      changed.has('src') ||
+      changed.has('endpoint') ||
+      changed.has('prompt') ||
+      (!this.prompt && changed.has('imageId')) ||
+      changed.has('llm') ||
+      changed.has('ratio') ||
+      changed.has('light') ||
+      changed.has('subscription') ||
+      changed.has('regenerate') ||
+      changed.has('width') ||
+      changed.has('height') ||
+      changed.has('fallback')
+
+    if (shouldRestart) {
+      queueMicrotask(() => this.start())
+    }
+  }
+
+  refresh() {
+    this.start()
   }
 
   // Debug helper — call from browser console: document.querySelector('ai-img').debugState()
@@ -148,6 +174,7 @@ export class AiImg extends LitElement {
   private start() {
     this.collectPassThroughAttributes()
     const dimensions = dimensionsFor(this.width, this.height, this.ratio)
+    const resolveToken = ++this.activeResolveToken
     console.log('[ai-img] start()', {
       src: this.src,
       prompt: this.prompt?.slice(0, 60),
@@ -166,6 +193,7 @@ export class AiImg extends LitElement {
       this.resolvedUrl = this.src
       this.status = 'loading'
       this.loadingKind = 'image'
+      this.dispatchStatus({ status: 'completed', url: this.src }, 0)
       this.settle(this.src)
       return
     }
@@ -174,6 +202,7 @@ export class AiImg extends LitElement {
     if (!this.prompt && !this.imageId) {
       console.log('[ai-img] no prompt and no imageId — idle')
       this.status = 'idle'
+      this.dispatchStatus({ status: 'idle' }, 0)
       this.settleFallback()
       return
     }
@@ -203,11 +232,15 @@ export class AiImg extends LitElement {
     // as progress feedback while it resolves.
     console.log('[ai-img] starting generation via', this.endpoint)
     this.imgsrc = placeholder(dimensions.width || '1', dimensions.height || '1')
+    this.resolvedUrl = ''
+    this.retried = false
+    this.onFallback = false
     this.status = 'loading'
     this.loadingKind = 'generation'
     this.errorMessage = ''
     this.errorStatus = undefined
-    void this.resolve()
+    this.dispatchStatus({ status: 'requesting' }, 0)
+    void this.resolve(resolveToken)
   }
 
   private collectPassThroughAttributes() {
@@ -220,22 +253,32 @@ export class AiImg extends LitElement {
     this.imgAttributes = nextAttributes
   }
 
-  private async resolve() {
+  private async resolve(resolveToken: number) {
     const dimensions = dimensionsFor(this.width, this.height, this.ratio)
     let result: Awaited<ReturnType<typeof resolveImage>>
     try {
-      result = await resolveImage(this.endpoint, {
-        prompt: this.prompt,
-        imageId: this.imageId,
-        width: Number(dimensions.width) || undefined,
-        height: Number(dimensions.height) || undefined,
-        llm: this.llm,
-        ratio: this.ratio,
-        light: this.llm === 'gemini' ? this.light : undefined,
-        subscription: this.subscription || undefined,
-        regenerate: this.regenerate || undefined,
-      })
+      result = await resolveImage(
+        this.endpoint,
+        {
+          prompt: this.prompt,
+          imageId: this.imageId,
+          width: Number(dimensions.width) || undefined,
+          height: Number(dimensions.height) || undefined,
+          llm: this.llm,
+          ratio: this.ratio,
+          light: this.llm === 'gemini' ? this.light : undefined,
+          subscription: this.subscription || undefined,
+          regenerate: this.regenerate || undefined,
+        },
+        {
+          onStatus: (event) => {
+            if (resolveToken !== this.activeResolveToken) return
+            this.dispatchStatus(event, event.attempt)
+          },
+        },
+      )
     } catch (error) {
+      if (resolveToken !== this.activeResolveToken) return
       console.error('[ai-img] resolve error', error)
       this.dispatchError(
         error instanceof Error ? error.message : 'image request failed',
@@ -244,6 +287,8 @@ export class AiImg extends LitElement {
       this.settleFallback()
       return
     }
+
+    if (resolveToken !== this.activeResolveToken) return
 
     console.log('[ai-img] resolved', {
       id: result.id,
@@ -285,11 +330,39 @@ export class AiImg extends LitElement {
     this.onFallback = false
     this.status = 'loading'
     this.loadingKind = 'image'
+    this.dispatchStatus(
+      {
+        id: result.id,
+        status: 'completed',
+        url: result.url,
+      },
+      0,
+    )
     this.settle(result.url)
   }
 
   private settle(src: string) {
     this.imgsrc = src
+  }
+
+  private dispatchStatus(
+    detail:
+      | ResolveImageStatusEvent
+      | { status: 'idle' | 'requesting'; url?: string; id?: string },
+    attempt: number,
+  ) {
+    this.dispatchEvent(
+      new CustomEvent('ai-image-status', {
+        detail: {
+          ...detail,
+          attempt,
+          prompt: this.prompt,
+          imageId: this.imageId,
+        },
+        bubbles: true,
+        composed: true,
+      }),
+    )
   }
 
   private settleFallback() {
