@@ -126,6 +126,46 @@ With no `provider` specified, defaults to `openai`. The module calls exactly
 one provider and throws on failure — provider fallback and retry strategy are
 the caller's responsibility.
 
+### Multimodal prompts (reference images)
+
+`prompt` accepts TanStack AI's `MediaPrompt`: either a string or an ordered
+array of text and image parts. Put the instructions and references in the same
+prompt so their relationship is explicit:
+
+```ts
+import {
+  generateImageBuffer,
+  type MediaPrompt,
+} from 'wc-img-ai/server'
+
+const referenceData = Buffer.from(
+  await referenceImage.arrayBuffer(),
+).toString('base64')
+
+const prompt: MediaPrompt = [
+  { type: 'text', content: 'Use image 1 as the composition reference.' },
+  {
+    type: 'image',
+    source: {
+      type: 'data',
+      value: referenceData,
+      mimeType: referenceImage.type,
+    },
+  },
+  { type: 'text', content: 'Render it as a clean architectural blueprint.' },
+]
+
+const image = await generateImageBuffer(prompt, 1536, 1024, {
+  provider: 'openai',
+})
+```
+
+For OpenAI, text parts are joined and image parts are sent in the same
+multipart `/images/edits` request. For Gemini, the ordered parts are sent as
+text and `inlineData` in the same `generateContent` request. Multiple image
+parts are supported. Image sources must currently be base64 `data` sources;
+server-side URL fetching is intentionally disabled.
+
 ### Opt-in custom transport
 
 A server application can supply its own generator. This is never selected by

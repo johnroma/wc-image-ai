@@ -43,7 +43,10 @@ the same fallback chain and timeout budget without reimplementing it.
 ## Server module design
 
 `generateImageBuffer(prompt, width, height, options?)` is the single entry
-point. It calls the specified provider (default: `openai`) and returns
+point. Its prompt follows TanStack AI's `MediaPrompt` contract: a plain string
+for text-only generation or an ordered list of text and image parts for
+reference-image generation. It calls the specified provider (default:
+`openai`) and returns
 `{ buffer, mimeType, width, height }` — no side effects, no fallback between
 providers.
 

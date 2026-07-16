@@ -74,6 +74,7 @@
     "@changesets/cli": "^2.27.1",
     "@lit-labs/observers": "^2.0.2",
     "@open-wc/lit-helpers": "^0.7.0",
+    "@tanstack/ai": "0.41.0",
     "lit": "^3.1.0"
   },
   "peerDependencies": {
