@@ -26,6 +26,9 @@ type BuiltinGenerateOptionsBase = {
     openaiModel?: OpenAiImageModel;
     /** Per-request timeout in milliseconds. Defaults to 90 000 (90 s). */
     timeoutMs?: number;
+    /** Optional source image Blob. OpenAI routes requests with this value to
+     *  the multipart images/edits endpoint. */
+    referenceImage?: Blob;
 };
 type GeminiFlashOptions = {
     /** Regular Gemini Flash is selected when light is absent or false. */

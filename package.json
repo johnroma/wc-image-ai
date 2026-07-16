@@ -53,6 +53,7 @@
     "lint:eslint:fix": "eslint . --fix",
     "preview": "vite preview",
     "demo": "node demo/server.mjs",
+    "test": "vitest run",
     "prepack": "pnpm build"
   },
   "devDependencies": {
@@ -66,7 +67,8 @@
     "globals": "^16.4.0",
     "nanoid": "^5.0.9",
     "typescript": "^5.2.2",
-    "vite": "^5.0.8"
+    "vite": "^6.4.3",
+    "vitest": "^3.2.7"
   },
   "dependencies": {
     "@changesets/cli": "^2.27.1",

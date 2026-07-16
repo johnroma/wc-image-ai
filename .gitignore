@@ -16,6 +16,12 @@ dist-ssr
 .env
 images
 
+# Understand Anything scratch data
+.understand-anything/.trash-*/
+.understand-anything/tmp/
+.understand-anything/intermediate/*
+!.understand-anything/intermediate/scan-result.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

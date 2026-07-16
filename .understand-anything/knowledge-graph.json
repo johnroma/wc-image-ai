@@ -1,0 +1,1360 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "wc-img-ai",
+    "languages": [
+      "config",
+      "css",
+      "html",
+      "javascript",
+      "json",
+      "markdown",
+      "typescript",
+      "unknown",
+      "yaml"
+    ],
+    "frameworks": [
+      "Vite"
+    ],
+    "description": "Use AI to generate images for your img tags.",
+    "analyzedAt": "2026-07-16T18:01:45Z",
+    "gitCommitHash": "38b3ebaeb31d4728e89e981346493c209772e1a1"
+  },
+  "nodes": [
+    {
+      "id": "file:src/ai-img.ts",
+      "type": "file",
+      "name": "ai-img.ts",
+      "filePath": "src/ai-img.ts",
+      "summary": "Implements the SSR-safe `ai-img` Lit web component, coordinating direct image URLs, asynchronous AI generation, provider validation, loading states, retries, fallbacks, and host events.",
+      "tags": [
+        "component",
+        "web-component",
+        "event-handler",
+        "image-generation",
+        "entry-point"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Uses Lit reactive properties and manual custom-element registration so the module remains safe to import during server-side rendering."
+    },
+    {
+      "id": "function:src/ai-img.ts:dimensionsFor",
+      "type": "function",
+      "name": "dimensionsFor",
+      "filePath": "src/ai-img.ts",
+      "lineRange": [
+        43,
+        65
+      ],
+      "summary": "Derives a missing image height from a valid width and aspect-ratio string while preserving explicitly supplied dimensions.",
+      "tags": [
+        "utility",
+        "validation",
+        "dimensions",
+        "aspect-ratio"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/ai-img.ts:AiImg",
+      "type": "class",
+      "name": "AiImg",
+      "filePath": "src/ai-img.ts",
+      "lineRange": [
+        67,
+        554
+      ],
+      "summary": "LitElement-based image component that resolves or generates images, tracks durable request and load state, emits lifecycle events, and renders responsive loading and fallback UI.",
+      "tags": [
+        "component",
+        "web-component",
+        "state-management",
+        "event-handler",
+        "image-generation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/get-generated-image.ts",
+      "type": "file",
+      "name": "get-generated-image.ts",
+      "filePath": "src/get-generated-image.ts",
+      "summary": "Provides the browser-side image endpoint client, including typed request states, structured errors, blob responses, immediate URL responses, and bounded polling for asynchronous generation.",
+      "tags": [
+        "service",
+        "api-client",
+        "polling",
+        "serialization",
+        "error-handling"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:src/get-generated-image.ts:ResolveImageError",
+      "type": "class",
+      "name": "ResolveImageError",
+      "filePath": "src/get-generated-image.ts",
+      "lineRange": [
+        63,
+        71
+      ],
+      "summary": "Carries image-resolution failures together with an optional HTTP status for consumers and UI error reporting.",
+      "tags": [
+        "error-handling",
+        "api-client",
+        "http-status"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/get-generated-image.ts:errorMessageFrom",
+      "type": "function",
+      "name": "errorMessageFrom",
+      "filePath": "src/get-generated-image.ts",
+      "lineRange": [
+        73,
+        93
+      ],
+      "summary": "Extracts a useful error message from several JSON response shapes and falls back to an HTTP-status message for non-JSON responses.",
+      "tags": [
+        "error-handling",
+        "serialization",
+        "api-client"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/get-generated-image.ts:readJson",
+      "type": "function",
+      "name": "readJson",
+      "filePath": "src/get-generated-image.ts",
+      "lineRange": [
+        97,
+        106
+      ],
+      "summary": "Parses an endpoint response as JSON and normalizes parse failures into a status-aware ResolveImageError.",
+      "tags": [
+        "serialization",
+        "error-handling",
+        "api-client"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/get-generated-image.ts:resolveStatusUrl",
+      "type": "function",
+      "name": "resolveStatusUrl",
+      "filePath": "src/get-generated-image.ts",
+      "lineRange": [
+        128,
+        147
+      ],
+      "summary": "Resolves relative polling URLs against the endpoint or available browser document location with a localhost fallback.",
+      "tags": [
+        "utility",
+        "url-resolution",
+        "polling"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/get-generated-image.ts:pollPendingImage",
+      "type": "function",
+      "name": "pollPendingImage",
+      "filePath": "src/get-generated-image.ts",
+      "lineRange": [
+        149,
+        218
+      ],
+      "summary": "Polls an asynchronous image job with bounded attempts and backoff, reporting status transitions and validating completed, failed, and still-pending responses.",
+      "tags": [
+        "polling",
+        "async",
+        "api-client",
+        "validation",
+        "error-handling"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/get-generated-image.ts:resolveImage",
+      "type": "function",
+      "name": "resolveImage",
+      "filePath": "src/get-generated-image.ts",
+      "lineRange": [
+        228,
+        299
+      ],
+      "summary": "Posts an image lookup or generation request and normalizes raw image blobs, immediate URLs, pending jobs, and endpoint failures into a single client API.",
+      "tags": [
+        "api-client",
+        "service",
+        "polling",
+        "serialization",
+        "image-generation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/provider-ratios.ts",
+      "type": "file",
+      "name": "provider-ratios.ts",
+      "filePath": "src/provider-ratios.ts",
+      "summary": "Centralizes OpenAI and Gemini image model capabilities, typed aspect-ratio and image-size constraints, validation helpers, and provider-specific canvas conversion utilities shared by browser and server code.",
+      "tags": [
+        "validation",
+        "configuration",
+        "type-definition",
+        "utility",
+        "image-generation"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Uses readonly tuple literals, discriminated capability records, type predicates, and assertion functions to align runtime provider checks with compile-time unions."
+    },
+    {
+      "id": "function:src/provider-ratios.ts:generationCanvasForProvider",
+      "type": "function",
+      "name": "generationCanvasForProvider",
+      "filePath": "src/provider-ratios.ts",
+      "lineRange": [
+        67,
+        86
+      ],
+      "summary": "Scales pixel-canvas requests to provider minimum dimensions and pixel budgets, rounding output to the required dimension step.",
+      "tags": [
+        "utility",
+        "dimensions",
+        "provider-capabilities",
+        "image-generation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/provider-ratios.ts:geminiModelCapabilities",
+      "type": "function",
+      "name": "geminiModelCapabilities",
+      "filePath": "src/provider-ratios.ts",
+      "lineRange": [
+        171,
+        175
+      ],
+      "summary": "Looks up the supported ratios, sizes, and default size for a Gemini image model.",
+      "tags": [
+        "utility",
+        "provider-capabilities",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/provider-ratios.ts:isGeminiRatioSupported",
+      "type": "function",
+      "name": "isGeminiRatioSupported",
+      "filePath": "src/provider-ratios.ts",
+      "lineRange": [
+        177,
+        185
+      ],
+      "summary": "Checks whether a ratio is available for a specific Gemini model and narrows valid values to GeminiRatio.",
+      "tags": [
+        "validation",
+        "type-guard",
+        "aspect-ratio",
+        "provider-capabilities"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/provider-ratios.ts:isGeminiImageSizeSupported",
+      "type": "function",
+      "name": "isGeminiImageSizeSupported",
+      "filePath": "src/provider-ratios.ts",
+      "lineRange": [
+        187,
+        196
+      ],
+      "summary": "Checks whether a requested output tier is supported by a specific Gemini image model.",
+      "tags": [
+        "validation",
+        "type-guard",
+        "image-size",
+        "provider-capabilities"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/provider-ratios.ts:assertGeminiGenerationSupported",
+      "type": "function",
+      "name": "assertGeminiGenerationSupported",
+      "filePath": "src/provider-ratios.ts",
+      "lineRange": [
+        198,
+        219
+      ],
+      "summary": "Validates a Gemini model, aspect ratio, and optional image size, throwing detailed capability errors for unsupported combinations.",
+      "tags": [
+        "validation",
+        "provider-capabilities",
+        "error-handling",
+        "image-generation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/provider-ratios.ts:isRatioSupported",
+      "type": "function",
+      "name": "isRatioSupported",
+      "filePath": "src/provider-ratios.ts",
+      "lineRange": [
+        226,
+        228
+      ],
+      "summary": "Checks a provider's known ratio set while allowing unknown providers to defer validation to their implementation.",
+      "tags": [
+        "validation",
+        "aspect-ratio",
+        "provider-capabilities"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/provider-ratios.ts:withinOpenaiRatio",
+      "type": "function",
+      "name": "withinOpenaiRatio",
+      "filePath": "src/provider-ratios.ts",
+      "lineRange": [
+        233,
+        237
+      ],
+      "summary": "Determines whether a pixel canvas stays within OpenAI's maximum portrait or landscape aspect ratio.",
+      "tags": [
+        "validation",
+        "aspect-ratio",
+        "openai",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/provider-ratios.ts:openaiGenerationSize",
+      "type": "function",
+      "name": "openaiGenerationSize",
+      "filePath": "src/provider-ratios.ts",
+      "lineRange": [
+        240,
+        243
+      ],
+      "summary": "Converts requested dimensions into an OpenAI-compatible scaled `WxH` generation size.",
+      "tags": [
+        "utility",
+        "dimensions",
+        "openai",
+        "image-generation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/provider-ratios.ts:nearestGeminiRatio",
+      "type": "function",
+      "name": "nearestGeminiRatio",
+      "filePath": "src/provider-ratios.ts",
+      "lineRange": [
+        252,
+        272
+      ],
+      "summary": "Selects the closest supported Gemini ratio to a requested canvas using logarithmic aspect-ratio distance and optional model filtering.",
+      "tags": [
+        "utility",
+        "aspect-ratio",
+        "gemini",
+        "provider-capabilities"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/server.ts",
+      "type": "file",
+      "name": "server.ts",
+      "filePath": "src/server.ts",
+      "summary": "Implements server-side image generation for OpenAI, Gemini, or a caller-supplied generator, validating dimensions and model capabilities before returning normalized image bytes and metadata.",
+      "tags": [
+        "service",
+        "server",
+        "image-generation",
+        "api-client",
+        "validation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/server.ts:callCustom",
+      "type": "function",
+      "name": "callCustom",
+      "filePath": "src/server.ts",
+      "lineRange": [
+        134,
+        168
+      ],
+      "summary": "Runs a custom image generator under an abort timeout and validates that it returns non-empty image bytes with an image MIME type.",
+      "tags": [
+        "service",
+        "validation",
+        "timeout",
+        "factory",
+        "image-generation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/server.ts:callOpenAI",
+      "type": "function",
+      "name": "callOpenAI",
+      "filePath": "src/server.ts",
+      "lineRange": [
+        170,
+        207
+      ],
+      "summary": "Calls the OpenAI images API with API-key authentication and timeout handling, then decodes its base64 image payload into a Buffer.",
+      "tags": [
+        "api-client",
+        "openai",
+        "serialization",
+        "error-handling",
+        "image-generation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/server.ts:callGemini",
+      "type": "function",
+      "name": "callGemini",
+      "filePath": "src/server.ts",
+      "lineRange": [
+        209,
+        277
+      ],
+      "summary": "Builds and executes a Gemini image request using model-aware ratio and size selection, then extracts inline image bytes from the generated content response.",
+      "tags": [
+        "api-client",
+        "gemini",
+        "validation",
+        "serialization",
+        "image-generation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/server.ts:generateImageBuffer",
+      "type": "function",
+      "name": "generateImageBuffer",
+      "filePath": "src/server.ts",
+      "lineRange": [
+        288,
+        342
+      ],
+      "summary": "Validates output dimensions, selects custom, OpenAI, or Gemini generation, and returns normalized bytes, MIME type, and requested dimensions without automatic provider fallback.",
+      "tags": [
+        "service",
+        "factory",
+        "validation",
+        "image-generation",
+        "api-client"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:types/ai-img.d.ts",
+      "type": "file",
+      "name": "ai-img.d.ts",
+      "filePath": "types/ai-img.d.ts",
+      "summary": "Generated public declarations for the AiImg Lit component, exposing its reactive attributes, durable status fields, lifecycle methods, and custom-element tag mapping.",
+      "tags": [
+        "type-definition",
+        "component",
+        "generated",
+        "public-api"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:types/get-generated-image.d.ts",
+      "type": "file",
+      "name": "get-generated-image.d.ts",
+      "filePath": "types/get-generated-image.d.ts",
+      "summary": "Generated declarations for the browser image-resolution client, including request and response shapes, polling status events, ResolveImageError, and the resolveImage API.",
+      "tags": [
+        "type-definition",
+        "api-client",
+        "generated",
+        "public-api"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:types/provider-ratios.d.ts",
+      "type": "file",
+      "name": "provider-ratios.d.ts",
+      "filePath": "types/provider-ratios.d.ts",
+      "summary": "Generated declarations for provider model constants, typed ratio and image-size unions, capability records, and validation and dimension utilities.",
+      "tags": [
+        "type-definition",
+        "provider-capabilities",
+        "generated",
+        "public-api",
+        "validation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:types/server.d.ts",
+      "type": "file",
+      "name": "server.d.ts",
+      "filePath": "types/server.d.ts",
+      "summary": "Generated declarations for server-side built-in and custom generation options, normalized image-buffer results, re-exported provider helpers, and generateImageBuffer.",
+      "tags": [
+        "type-definition",
+        "server",
+        "generated",
+        "public-api",
+        "image-generation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:vite.config.ts",
+      "type": "file",
+      "name": "vite.config.ts",
+      "filePath": "vite.config.ts",
+      "summary": "Configures an unminified ES-module library build with separate browser component, provider-capability, and server entry points.",
+      "tags": [
+        "configuration",
+        "build-system",
+        "vite",
+        "library-build"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "Primary usage guide for the wc-img-ai web component, server-side image generation module, provider capability utilities, and HTTP endpoint contract. It covers installation, attributes, events, provider routing, environment variables, and a complete server example.",
+      "tags": [
+        "documentation",
+        "entry-point",
+        "web-component",
+        "api-reference",
+        "image-generation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:DESIGN.md",
+      "type": "document",
+      "name": "DESIGN.md",
+      "filePath": "DESIGN.md",
+      "summary": "Records the architectural rationale for separating the browser component, host endpoint, server generation module, and shared provider-ratio contract. It also defines image-id semantics, the single-POST protocol, and blob-proxy behavior.",
+      "tags": [
+        "documentation",
+        "architecture",
+        "design-decisions",
+        "api-contract",
+        "image-generation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:CHANGELOG.md",
+      "type": "document",
+      "name": "CHANGELOG.md",
+      "filePath": "CHANGELOG.md",
+      "summary": "Tracks releases from 0.2.0 through 0.5.1, including package publishing fixes, provider controls, loading behavior, component attributes, endpoint semantics, and the reference demo server.",
+      "tags": [
+        "documentation",
+        "changelog",
+        "release-history",
+        "web-component"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:demo/index.html",
+      "type": "file",
+      "name": "index.html",
+      "filePath": "demo/index.html",
+      "summary": "Interactive browser demo that creates an ai-img element from a user prompt, sends it to the local image endpoint, and displays the latest ai-image event payload.",
+      "tags": [
+        "component",
+        "demo",
+        "event-handler",
+        "web-component",
+        "markup"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Uses an inline ES module to construct the custom element and observe its CustomEvent result."
+    },
+    {
+      "id": "file:demo/server.mjs",
+      "type": "file",
+      "name": "server.mjs",
+      "filePath": "demo/server.mjs",
+      "summary": "Runnable Node.js HTTP demo server that serves the demo and built component, resolves cached image IDs, generates new images through the server module, and persists generated bytes to disk.",
+      "tags": [
+        "entry-point",
+        "api-handler",
+        "demo",
+        "service",
+        "image-generation"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Implements routing directly with node:http and validates storage IDs before constructing filesystem paths."
+    },
+    {
+      "id": "file:index.html",
+      "type": "file",
+      "name": "index.html",
+      "filePath": "index.html",
+      "summary": "Vite development fixture that loads the TypeScript ai-img component alongside a native image and exercises component sizing, prompt, source, and fallback attributes.",
+      "tags": [
+        "development",
+        "demo",
+        "web-component",
+        "markup"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:index.css",
+      "type": "file",
+      "name": "index.css",
+      "filePath": "index.css",
+      "summary": "Minimal development-fixture stylesheet that gives elements using the hello class a green border and fixed 256-pixel dimensions.",
+      "tags": [
+        "styling",
+        "development",
+        "demo",
+        "css"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:package.json",
+      "type": "config",
+      "name": "package.json",
+      "filePath": "package.json",
+      "summary": "Defines the wc-img-ai ESM package, public browser and server export map, publishable artifacts, build and quality scripts, and Lit-based runtime dependencies.",
+      "tags": [
+        "configuration",
+        "build-system",
+        "package-metadata",
+        "exports",
+        "typescript"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Uses conditional package exports to pair handwritten declaration files with separate browser, provider-ratio, and Node.js server bundles."
+    },
+    {
+      "id": "config:pnpm-workspace.yaml",
+      "type": "config",
+      "name": "pnpm-workspace.yaml",
+      "filePath": "pnpm-workspace.yaml",
+      "summary": "PnPM workspace policy that explicitly permits esbuild's dependency build script during installation.",
+      "tags": [
+        "configuration",
+        "build-system",
+        "package-manager",
+        "security"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.changeset/config.json",
+      "type": "config",
+      "name": "config.json",
+      "filePath": ".changeset/config.json",
+      "summary": "Configures Changesets to generate changelogs for restricted packages from the main branch, without automatic commits and with patch-level internal dependency updates.",
+      "tags": [
+        "configuration",
+        "versioning",
+        "release-management",
+        "changesets"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.changeset/README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": ".changeset/README.md",
+      "summary": "Brief generated introduction to Changesets, explaining its role in package versioning and publishing and linking to upstream documentation.",
+      "tags": [
+        "documentation",
+        "versioning",
+        "release-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.env.example",
+      "type": "config",
+      "name": ".env.example",
+      "filePath": ".env.example",
+      "summary": "Provides the demo server environment template for an OpenAI API key and an optional image-model override that defaults to gpt-image-2.",
+      "tags": [
+        "configuration",
+        "environment",
+        "openai",
+        "demo-server"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:.npmrc",
+      "type": "file",
+      "name": ".npmrc",
+      "filePath": ".npmrc",
+      "summary": "Restricts pnpm dependency build scripts so only esbuild is permitted to run during installation.",
+      "tags": [
+        "configuration",
+        "package-manager",
+        "build-system",
+        "security"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:.understand-anything/.understandignore",
+      "type": "file",
+      "name": ".understandignore",
+      "filePath": ".understand-anything/.understandignore",
+      "summary": "Documents optional gitignore-style exclusion patterns for Understand Anything analysis; all suggested project and test exclusions remain commented out.",
+      "tags": [
+        "configuration",
+        "code-analysis",
+        "ignore-patterns",
+        "documentation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:biome.json",
+      "type": "config",
+      "name": "biome.json",
+      "filePath": "biome.json",
+      "summary": "Defines Biome formatting, import organization, and recommended linting for the project, with strict unused-code checks and targeted warnings for React and accessibility patterns.",
+      "tags": [
+        "configuration",
+        "linting",
+        "formatting",
+        "code-quality",
+        "javascript"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:eslint.config.js",
+      "type": "file",
+      "name": "eslint.config.js",
+      "filePath": "eslint.config.js",
+      "summary": "Exports the ESLint flat configuration for JavaScript and TypeScript, combining core, TypeScript, and Web Components recommendations while allowing underscore-prefixed unused values.",
+      "tags": [
+        "configuration",
+        "linting",
+        "typescript",
+        "web-components",
+        "code-quality"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Uses ESLint's ESM flat-config array and composes recommended rule sets with object spreads."
+    },
+    {
+      "id": "config:tsconfig.json",
+      "type": "config",
+      "name": "tsconfig.json",
+      "filePath": "tsconfig.json",
+      "summary": "Configures strict TypeScript declaration-only compilation for browser-facing source files, targeting ES2020 and emitting generated types while excluding the Node server entry point.",
+      "tags": [
+        "configuration",
+        "typescript",
+        "type-declarations",
+        "build-system"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Uses bundler module resolution and legacy decorator field semantics for web component declarations."
+    },
+    {
+      "id": "config:tsconfig.server.json",
+      "type": "config",
+      "name": "tsconfig.server.json",
+      "filePath": "tsconfig.server.json",
+      "summary": "Extends the main TypeScript settings with an ES2022 Node-only library target to emit declarations specifically for src/server.ts.",
+      "tags": [
+        "configuration",
+        "typescript",
+        "server",
+        "type-declarations"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/ai-img.ts",
+      "target": "function:src/ai-img.ts:dimensionsFor",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/ai-img.ts",
+      "target": "class:src/ai-img.ts:AiImg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/ai-img.ts",
+      "target": "class:src/ai-img.ts:AiImg",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/ai-img.ts",
+      "target": "file:src/get-generated-image.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/ai-img.ts",
+      "target": "file:src/provider-ratios.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "class:src/ai-img.ts:AiImg",
+      "target": "function:src/get-generated-image.ts:resolveImage",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "class:src/ai-img.ts:AiImg",
+      "target": "function:src/provider-ratios.ts:isGeminiRatioSupported",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "class:src/ai-img.ts:AiImg",
+      "target": "function:src/provider-ratios.ts:isRatioSupported",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/get-generated-image.ts",
+      "target": "class:src/get-generated-image.ts:ResolveImageError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/get-generated-image.ts",
+      "target": "function:src/get-generated-image.ts:errorMessageFrom",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/get-generated-image.ts",
+      "target": "function:src/get-generated-image.ts:readJson",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/get-generated-image.ts",
+      "target": "function:src/get-generated-image.ts:resolveStatusUrl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/get-generated-image.ts",
+      "target": "function:src/get-generated-image.ts:pollPendingImage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/get-generated-image.ts",
+      "target": "function:src/get-generated-image.ts:resolveImage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/get-generated-image.ts",
+      "target": "class:src/get-generated-image.ts:ResolveImageError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/get-generated-image.ts",
+      "target": "function:src/get-generated-image.ts:resolveImage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:generationCanvasForProvider",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:geminiModelCapabilities",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:isGeminiRatioSupported",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:isGeminiImageSizeSupported",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:assertGeminiGenerationSupported",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:isRatioSupported",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:withinOpenaiRatio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:openaiGenerationSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:nearestGeminiRatio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:generationCanvasForProvider",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:geminiModelCapabilities",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:isGeminiRatioSupported",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:isGeminiImageSizeSupported",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:assertGeminiGenerationSupported",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:isRatioSupported",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:withinOpenaiRatio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:openaiGenerationSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/provider-ratios.ts",
+      "target": "function:src/provider-ratios.ts:nearestGeminiRatio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/server.ts",
+      "target": "function:src/server.ts:callCustom",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/server.ts",
+      "target": "function:src/server.ts:callOpenAI",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/server.ts",
+      "target": "function:src/server.ts:callGemini",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/server.ts",
+      "target": "function:src/server.ts:generateImageBuffer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/server.ts",
+      "target": "function:src/server.ts:generateImageBuffer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/server.ts",
+      "target": "file:src/provider-ratios.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "function:src/server.ts:callGemini",
+      "target": "function:src/provider-ratios.ts:geminiModelCapabilities",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/server.ts:callGemini",
+      "target": "function:src/provider-ratios.ts:nearestGeminiRatio",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/server.ts:callGemini",
+      "target": "function:src/provider-ratios.ts:assertGeminiGenerationSupported",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/server.ts:generateImageBuffer",
+      "target": "function:src/provider-ratios.ts:withinOpenaiRatio",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/server.ts:generateImageBuffer",
+      "target": "function:src/provider-ratios.ts:openaiGenerationSize",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "document:README.md",
+      "target": "file:demo/server.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "file:demo/index.html",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:DESIGN.md",
+      "target": "document:README.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:CHANGELOG.md",
+      "target": "file:demo/server.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:demo/index.html",
+      "target": "file:demo/server.mjs",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:index.html",
+      "target": "file:index.css",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:package.json",
+      "target": "file:demo/server.mjs",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:pnpm-workspace.yaml",
+      "target": "config:package.json",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "document:.changeset/README.md",
+      "target": "config:.changeset/config.json",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "config:tsconfig.server.json",
+      "target": "config:tsconfig.json",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:browser-component",
+      "name": "Browser Component",
+      "description": "The SSR-safe Lit custom element owns browser rendering, reactive image state, loading and fallback behavior, and lifecycle event emission.",
+      "nodeIds": [
+        "file:src/ai-img.ts"
+      ]
+    },
+    {
+      "id": "layer:image-runtime",
+      "name": "Image Generation Runtime",
+      "description": "Browser endpoint resolution, shared provider capability validation, and server-side OpenAI, Gemini, or custom image generation form the package runtime.",
+      "nodeIds": [
+        "file:src/get-generated-image.ts",
+        "file:src/provider-ratios.ts",
+        "file:src/server.ts"
+      ]
+    },
+    {
+      "id": "layer:public-api-types",
+      "name": "Public API Types",
+      "description": "Generated declaration artifacts expose the browser component, endpoint client, provider constraints, and server generation contracts to package consumers.",
+      "nodeIds": [
+        "file:types/ai-img.d.ts",
+        "file:types/get-generated-image.d.ts",
+        "file:types/provider-ratios.d.ts",
+        "file:types/server.d.ts"
+      ]
+    },
+    {
+      "id": "layer:examples-and-fixtures",
+      "name": "Examples and Development Fixtures",
+      "description": "The runnable HTTP demo and Vite fixtures exercise browser component integration, endpoint handling, generation, caching, events, and styling.",
+      "nodeIds": [
+        "file:demo/index.html",
+        "file:demo/server.mjs",
+        "file:index.html",
+        "file:index.css"
+      ]
+    },
+    {
+      "id": "layer:documentation",
+      "name": "Documentation",
+      "description": "Usage guidance, architectural decisions, release history, and Changesets instructions document the package and its browser-to-host protocol.",
+      "nodeIds": [
+        "document:README.md",
+        "document:DESIGN.md",
+        "document:CHANGELOG.md",
+        "document:.changeset/README.md"
+      ]
+    },
+    {
+      "id": "layer:project-support",
+      "name": "Project Support",
+      "description": "Build, declaration emission, linting, formatting, package publication, environment, release, dependency-security, and analysis settings support development and distribution.",
+      "nodeIds": [
+        "file:vite.config.ts",
+        "config:package.json",
+        "config:pnpm-workspace.yaml",
+        "config:.changeset/config.json",
+        "config:.env.example",
+        "file:.npmrc",
+        "file:.understand-anything/.understandignore",
+        "config:biome.json",
+        "file:eslint.config.js",
+        "config:tsconfig.json",
+        "config:tsconfig.server.json"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Package Overview",
+      "description": "Start with the primary guide to understand how wc-img-ai divides responsibility among the browser component, the host-owned HTTP endpoint, and the server generation module. Its usage, provider-routing, event, and endpoint documentation supplies the vocabulary for tracing one image request through the rest of the tour.",
+      "nodeIds": [
+        "document:README.md"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Architectural Boundaries",
+      "description": "The design record explains why the Lit component, host endpoint, server generator, and shared provider contract are separate layers. Its image-ID, single-POST, and blob-proxy decisions identify the host boundary that any new reference-image input must cross without collapsing browser, persistence, and provider concerns together.",
+      "nodeIds": [
+        "document:DESIGN.md"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "Lit Request Origin",
+      "description": "Building on those boundaries, the SSR-safe ai-img module owns the user-facing start of the flow: reactive inputs, generation state, retries, fallbacks, and lifecycle events. AiImg calls the endpoint client and performs provider checks, so this is the first place to inspect when deciding how a reference image should enter component state and participate in request lifecycles.",
+      "nodeIds": [
+        "file:src/ai-img.ts",
+        "class:src/ai-img.ts:AiImg"
+      ],
+      "languageLesson": "Lit reactive properties connect custom-element attributes and properties to update cycles, while manual element registration keeps this module safe to import in server-rendered environments."
+    },
+    {
+      "order": 4,
+      "title": "Endpoint Request Client",
+      "description": "The browser client turns the component's intent into a host-endpoint request and normalizes raw blobs, immediate URLs, pending jobs, and failures into one API. resolveImage is the request-construction and response boundary, while pollPendingImage preserves the asynchronous path; a reference image would need an explicit representation here before the host could receive it.",
+      "nodeIds": [
+        "file:src/get-generated-image.ts",
+        "function:src/get-generated-image.ts:resolveImage",
+        "function:src/get-generated-image.ts:pollPendingImage",
+        "class:src/get-generated-image.ts:ResolveImageError"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "Host Endpoint Example",
+      "description": "After the transport client, the runnable demo server shows the host-owned side of the contract: it handles HTTP routing, resolves cached image IDs, invokes generation, and persists returned bytes. This is the concrete data-flow boundary where an added input must be accepted and validated before it is translated into server-module options, rather than being hidden inside the web component.",
+      "nodeIds": [
+        "file:demo/server.mjs"
+      ],
+      "languageLesson": "A direct node:http handler makes routing and request translation explicit; validating storage identifiers before filesystem path construction protects the persistence boundary."
+    },
+    {
+      "order": 6,
+      "title": "Shared Provider Capabilities",
+      "description": "Before following the host into provider calls, study the shared capability module used by both browser and server code. Its model-aware ratio, image-size, canvas, and assertion helpers centralize what built-in providers accept, while unknown providers can defer validation to their own implementation; this is the main capability-validation seam for any provider-specific reference-image rules.",
+      "nodeIds": [
+        "file:src/provider-ratios.ts",
+        "function:src/provider-ratios.ts:assertGeminiGenerationSupported",
+        "function:src/provider-ratios.ts:isRatioSupported",
+        "function:src/provider-ratios.ts:generationCanvasForProvider"
+      ],
+      "languageLesson": "Readonly tuple literals, type predicates, and assertion functions let TypeScript derive narrow unions while keeping runtime provider validation aligned with compile-time contracts."
+    },
+    {
+      "order": 7,
+      "title": "Server Generation Router",
+      "description": "The server module receives generation options from the host layer, validates dimensions and capabilities, and selects custom, OpenAI, or Gemini execution without automatic provider fallback. generateImageBuffer is therefore the central routing seam where a new reference-image option would need to remain provider-neutral before adapter-specific translation.",
+      "nodeIds": [
+        "file:src/server.ts",
+        "function:src/server.ts:generateImageBuffer"
+      ]
+    },
+    {
+      "order": 8,
+      "title": "Provider Adapter Seams",
+      "description": "The three adapter functions reveal where normalized server options become provider-specific requests or custom-generator calls. OpenAI authentication and base64 decoding, Gemini model-aware request construction and inline-byte extraction, and the timeout-guarded custom generator are intentionally distinct, so reference-image support must be mapped according to each adapter's real capability rather than assumed to be uniform.",
+      "nodeIds": [
+        "function:src/server.ts:callOpenAI",
+        "function:src/server.ts:callGemini",
+        "function:src/server.ts:callCustom"
+      ]
+    },
+    {
+      "order": 9,
+      "title": "Public Type Contracts",
+      "description": "The generated declarations expose the component attributes, endpoint request and response shapes, provider constraints, custom generation options, and normalized server results to consumers. Reading these together makes the public compatibility surface explicit: any reference-image addition that crosses the full flow must be represented consistently in the component/client and server-facing contracts.",
+      "nodeIds": [
+        "file:types/ai-img.d.ts",
+        "file:types/get-generated-image.d.ts",
+        "file:types/provider-ratios.d.ts",
+        "file:types/server.d.ts"
+      ]
+    },
+    {
+      "order": 10,
+      "title": "Published Entry Points",
+      "description": "Finally, the package manifest and Vite configuration show how the browser component, provider-capability utilities, and server module are exposed as separate ESM entry points. The browser and server TypeScript configurations emit declarations for their respective environments, completing the map of which artifacts must stay synchronized when the request contract evolves.",
+      "nodeIds": [
+        "config:package.json",
+        "file:vite.config.ts",
+        "config:tsconfig.json",
+        "config:tsconfig.server.json"
+      ]
+    }
+  ]
+}

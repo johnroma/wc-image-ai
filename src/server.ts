@@ -46,6 +46,11 @@ export {
 
 const OPENAI_BASE = 'https://api.openai.com/v1'
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+const OPENAI_IMAGE_EXTENSIONS: Readonly<Record<string, string>> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
 const DEFAULT_OPENAI_MODEL: OpenAiImageModel = 'gpt-image-2'
 const DEFAULT_GEMINI_MODEL: GeminiImageModel = GEMINI_FLASH_IMAGE_MODEL
 const MAX_OUTPUT_DIMENSION = 4096
@@ -61,6 +66,9 @@ type BuiltinGenerateOptionsBase = {
   openaiModel?: OpenAiImageModel
   /** Per-request timeout in milliseconds. Defaults to 90 000 (90 s). */
   timeoutMs?: number
+  /** Optional source image Blob. OpenAI routes requests with this value to
+   *  the multipart images/edits endpoint. */
+  referenceImage?: Blob
 }
 
 type GeminiFlashOptions = {
@@ -167,14 +175,84 @@ async function callCustom(
   return { buffer: Buffer.from(result.buffer), mimeType: result.mimeType }
 }
 
-async function callOpenAI(
+async function callOpenAIEdition(
   prompt: string,
+  referenceImageBlob: Blob,
   size: string,
   model: string,
   timeoutMs: number,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
+
+  const formData = new FormData()
+  const extension = OPENAI_IMAGE_EXTENSIONS[referenceImageBlob.type]
+  const sourceBase =
+    typeof File !== 'undefined' && referenceImageBlob instanceof File
+      ? referenceImageBlob.name.replace(/\.[^.]*$/, '')
+      : 'reference-image'
+  const sanitizedBase = sourceBase
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80)
+  const filename = `${sanitizedBase || 'reference-image'}.${extension}`
+  formData.append('model', model)
+  formData.append('prompt', prompt)
+  formData.append('n', '1')
+  formData.append('size', size)
+  formData.append('image', referenceImageBlob, filename)
+
+  const response = await fetch(`${OPENAI_BASE}/images/edits`, {
+    method: 'POST',
+    headers: { Authorization: ['Bearer', apiKey].join(' ') },
+    body: formData,
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+
+  if (!response.ok) {
+    const text = (await response.text()).trim()
+    let message = `OpenAI image edition failed (${response.status})`
+    try {
+      const body = JSON.parse(text) as { error?: { message?: string } }
+      if (body.error?.message) message = body.error.message
+    } catch {
+      message = text.replace(/\s+/g, ' ').slice(0, 300)
+    }
+    throw new Error(message)
+  }
+
+  const data = (await response.json()) as {
+    data?: Array<{ b64_json?: string }>
+  }
+  const base64 = data?.data?.[0]?.b64_json
+  if (!base64) throw new Error(`OpenAI ${model} returned no image data`)
+  return { buffer: Buffer.from(base64, 'base64'), mimeType: 'image/png' }
+}
+
+async function callOpenAI(
+  prompt: string,
+  size: string,
+  model: string,
+  timeoutMs: number,
+  referenceImage?: Blob,
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
+
+  if (referenceImage !== undefined) {
+    if (!(referenceImage instanceof Blob)) {
+      throw new TypeError('Reference image must be a Blob')
+    }
+    if (referenceImage.size === 0) {
+      throw new Error('Reference image is empty')
+    }
+    if (!(referenceImage.type in OPENAI_IMAGE_EXTENSIONS)) {
+      throw new Error(
+        `Reference image has unsupported MIME type: ${referenceImage.type || 'unknown'}`,
+      )
+    }
+    return callOpenAIEdition(prompt, referenceImage, size, model, timeoutMs)
+  }
 
   const response = await fetch(`${OPENAI_BASE}/images/generations`, {
     method: 'POST',
@@ -314,6 +392,7 @@ export async function generateImageBuffer(
       openaiGenerationSize(w, h),
       model,
       timeoutMs,
+      options.referenceImage,
     )
   } else if (options.provider === 'gemini') {
     const model =
