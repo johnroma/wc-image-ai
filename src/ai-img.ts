@@ -1,5 +1,10 @@
 import { spread } from '@open-wc/lit-helpers'
-import type { MediaPrompt } from '@tanstack/ai'
+import type {
+  ImagePart,
+  MediaInputMetadata,
+  MediaPrompt,
+  MediaPromptPart,
+} from '@tanstack/ai'
 import { css, html, LitElement, nothing, type PropertyValues } from 'lit'
 import { property, state } from 'lit/decorators.js'
 import {
@@ -66,6 +71,51 @@ const dimensionsFor = (width: string, height: string, ratio: string) => {
   return { width, height }
 }
 
+const DATA_URL_PATTERN = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/
+
+/**
+ * Normalize a reference into a TanStack AI image part. Strings are shorthand:
+ * `data:` URLs become inline data sources, anything else is sent as a URL
+ * source. ImagePart objects pass through untouched.
+ */
+export const referenceToImagePart = (
+  reference: ImagePart<MediaInputMetadata> | string,
+): ImagePart<MediaInputMetadata> => {
+  if (typeof reference !== 'string') return reference
+  const dataUrl = DATA_URL_PATTERN.exec(reference)
+  if (dataUrl) {
+    return {
+      type: 'image',
+      source: {
+        type: 'data',
+        value: dataUrl[3],
+        mimeType: dataUrl[1] || 'image/png',
+      },
+    }
+  }
+  return { type: 'image', source: { type: 'url', value: reference } }
+}
+
+/**
+ * The blending brain: merge the host's prompt with ordered reference images
+ * into the single multimodal prompt sent to the endpoint. A string prompt
+ * becomes the leading text part; an already-structured prompt keeps its parts
+ * and the references are appended in order.
+ */
+export const composeMediaPrompt = (
+  prompt: MediaPrompt,
+  references: ReadonlyArray<ImagePart<MediaInputMetadata> | string>,
+): MediaPrompt => {
+  if (references.length === 0) return prompt
+  const base: MediaPromptPart[] =
+    typeof prompt === 'string'
+      ? prompt.trim()
+        ? [{ type: 'text', content: prompt }]
+        : []
+      : [...prompt]
+  return [...base, ...references.map(referenceToImagePart)]
+}
+
 export class AiImg extends LitElement {
   /**
    * A ready image URL (or data URL). When set, the component acts as a plain
@@ -77,6 +127,16 @@ export class AiImg extends LitElement {
   @property({ type: String }) endpoint = ''
   /** Text or structured media prompt used to generate the image. */
   @property() prompt: MediaPrompt = ''
+  /**
+   * Ordered reference images blended into the generation. Accepts TanStack AI
+   * ImageParts or shorthand strings (`data:` URLs, or plain http(s) URLs).
+   * When non-empty the component composes the multimodal prompt itself — the
+   * host only supplies the instruction via `prompt`. Assign a new array to
+   * retrigger; change detection is by identity, like every Lit property.
+   */
+  @property({ attribute: false }) references: ReadonlyArray<
+    ImagePart<MediaInputMetadata> | string
+  > = []
   /** Storage handle. Reflected after the server mints a new image. */
   @property({ type: String, attribute: 'image-id' }) imageId = ''
   /** Provider/model hint forwarded to the endpoint (e.g. "gemini", "openai"). */
@@ -136,6 +196,7 @@ export class AiImg extends LitElement {
       changed.has('src') ||
       changed.has('endpoint') ||
       changed.has('prompt') ||
+      changed.has('references') ||
       (!this.prompt && changed.has('imageId')) ||
       changed.has('llm') ||
       changed.has('model') ||
@@ -161,6 +222,7 @@ export class AiImg extends LitElement {
     return {
       src: this.src,
       prompt: this.prompt,
+      references: this.references.length,
       imageId: this.imageId,
       status: this.status,
       blobUrl: this.blobUrl,
@@ -176,16 +238,22 @@ export class AiImg extends LitElement {
     }
   }
 
+  /** Prompt plus reference images as one multimodal prompt. */
+  private composedPrompt(): MediaPrompt {
+    return composeMediaPrompt(this.prompt, this.references)
+  }
+
   private start() {
     this.collectPassThroughAttributes()
     const dimensions = dimensionsFor(this.width, this.height, this.ratio)
     const resolveToken = ++this.activeResolveToken
+    const prompt = this.composedPrompt()
     console.log('[ai-img] start()', {
       src: this.src,
       prompt:
-        typeof this.prompt === 'string'
-          ? this.prompt.slice(0, 60)
-          : `[${this.prompt.length} media parts]`,
+        typeof prompt === 'string'
+          ? prompt.slice(0, 60)
+          : `[${prompt.length} media parts]`,
       imageId: this.imageId,
       status: this.status,
     })
@@ -207,7 +275,7 @@ export class AiImg extends LitElement {
     }
 
     // Nothing to fetch and nothing to generate.
-    if (!this.prompt && !this.imageId) {
+    if (prompt.length === 0 && !this.imageId) {
       console.log('[ai-img] no prompt and no imageId — idle')
       this.status = 'idle'
       this.dispatchStatus({ status: 'idle' }, 0)
@@ -268,7 +336,7 @@ export class AiImg extends LitElement {
       result = await resolveImage(
         this.endpoint,
         {
-          prompt: this.prompt,
+          prompt: this.composedPrompt(),
           imageId: this.imageId,
           width: Number(dimensions.width) || undefined,
           height: Number(dimensions.height) || undefined,
