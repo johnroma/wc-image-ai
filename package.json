@@ -53,7 +53,8 @@
     "lint:eslint:fix": "eslint . --fix",
     "preview": "vite preview",
     "demo": "node demo/server.mjs",
-    "test": "vitest run",
+    "test": "pnpm build && MSW=true vitest run",
+    "test:e2e": "pnpm build && MSW=true vitest run test/demo.e2e.test.ts",
     "prepack": "pnpm build"
   },
   "devDependencies": {
@@ -65,6 +66,7 @@
     "eslint": "^9.35.0",
     "eslint-plugin-wc": "^3.1.0",
     "globals": "^16.4.0",
+    "msw": "^2.15.0",
     "nanoid": "^5.0.9",
     "typescript": "^5.2.2",
     "vite": "^6.4.3",

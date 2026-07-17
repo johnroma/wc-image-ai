@@ -1,3 +1,5 @@
+import type { MediaPrompt } from '@tanstack/ai'
+
 export const spinner = `<svg width="32" height="16" viewBox="0 0 32 16" xmlns="http://www.w3.org/2000/svg"><style>.d{fill:#777;transform-origin:center;animation:think 1.05s cubic-bezier(.4,0,.2,1) infinite}.b{animation-delay:.14s}.c{animation-delay:.28s}@keyframes think{0%,60%,100%{opacity:.28;transform:translateY(0) scale(.72)}30%{opacity:1;transform:translateY(-2px) scale(1)}}</style><circle class="d" cx="8" cy="9" r="1.8"/><circle class="d b" cx="16" cy="9" r="1.8"/><circle class="d c" cx="24" cy="9" r="1.8"/></svg>`
 
 /** Image-transfer glyph: a framed landscape with a scanning highlight. */
@@ -13,12 +15,14 @@ export const TRANSPARENT_PIXEL =
   )
 
 export interface ResolveImageRequest {
-  prompt?: string
+  prompt?: MediaPrompt
   imageId?: string
   width?: number
   height?: number
   /** Provider/model hint forwarded to the endpoint (e.g. "gemini", "openai"). */
   llm?: string
+  /** Exact image model hint forwarded to endpoints that support model selection. */
+  model?: string
   /** Aspect ratio forwarded to the endpoint (e.g. "16:9", "4:1"). */
   ratio?: string
   /** Prefer a faster/lower-cost model when the selected provider supports it. */
@@ -243,6 +247,7 @@ export const resolveImage = async (
         width: req.width || undefined,
         height: req.height || undefined,
         llm: req.llm || undefined,
+        model: req.model || undefined,
         ratio: req.ratio || undefined,
         light: req.light || undefined,
         subscription: req.subscription || undefined,

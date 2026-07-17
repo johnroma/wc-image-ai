@@ -1,4 +1,5 @@
 import { spread } from '@open-wc/lit-helpers'
+import type { MediaPrompt } from '@tanstack/ai'
 import { css, html, LitElement, nothing, type PropertyValues } from 'lit'
 import { property, state } from 'lit/decorators.js'
 import {
@@ -23,6 +24,7 @@ const RESERVED_ATTRS = new Set([
   'width',
   'height',
   'llm',
+  'model',
   'ratio',
   'light',
   'subscription',
@@ -73,12 +75,14 @@ export class AiImg extends LitElement {
   @property({ type: String }) src = ''
   /** Server route that owns the API key, generation, storage and lookup. */
   @property({ type: String }) endpoint = ''
-  /** Description used to generate the image (omit when fetching a known id). */
-  @property({ type: String }) prompt = ''
+  /** Text or structured media prompt used to generate the image. */
+  @property() prompt: MediaPrompt = ''
   /** Storage handle. Reflected after the server mints a new image. */
   @property({ type: String, attribute: 'image-id' }) imageId = ''
   /** Provider/model hint forwarded to the endpoint (e.g. "gemini", "openai"). */
   @property({ type: String }) llm = ''
+  /** Exact image model forwarded to endpoints that support model selection. */
+  @property({ type: String }) model = ''
   /** Aspect ratio forwarded to the endpoint and used to derive an omitted height. */
   @property({ type: String }) ratio = ''
   /** Prefer a faster/lower-cost model when the selected provider supports it. */
@@ -134,6 +138,7 @@ export class AiImg extends LitElement {
       changed.has('prompt') ||
       (!this.prompt && changed.has('imageId')) ||
       changed.has('llm') ||
+      changed.has('model') ||
       changed.has('ratio') ||
       changed.has('light') ||
       changed.has('subscription') ||
@@ -177,7 +182,10 @@ export class AiImg extends LitElement {
     const resolveToken = ++this.activeResolveToken
     console.log('[ai-img] start()', {
       src: this.src,
-      prompt: this.prompt?.slice(0, 60),
+      prompt:
+        typeof this.prompt === 'string'
+          ? this.prompt.slice(0, 60)
+          : `[${this.prompt.length} media parts]`,
       imageId: this.imageId,
       status: this.status,
     })
@@ -265,6 +273,7 @@ export class AiImg extends LitElement {
           width: Number(dimensions.width) || undefined,
           height: Number(dimensions.height) || undefined,
           llm: this.llm,
+          model: this.model,
           ratio: this.ratio,
           light: this.llm === 'gemini' ? this.light : undefined,
           subscription: this.subscription || undefined,

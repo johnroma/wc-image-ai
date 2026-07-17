@@ -311,6 +311,29 @@ The server can also return raw image bytes (blob-proxy mode) — the component
 detects the `Content-Type: image/*` response and fires the `ai-image` event
 with a `blob` field so the host can upload to its own storage.
 
+## Testing provider integrations without API charges
+
+The test harness has one mock-mode switch: `MSW=true`. It is intentionally not
+split into server and browser variables: Node tests use it to start MSW's
+`setupServer`, and any browser test harness should use that same switch to start
+MSW's `setupWorker`. The Vite and Vitest configs expose this one test-only value
+as both `process.env.MSW` and `import.meta.env.MSW`; it must never contain a
+secret.
+
+The current end-to-end suite runs the demo HTTP flow in Node and intercepts the
+provider requests with `setupServer`. The handlers cover OpenAI image
+generations, OpenAI image edits, and Gemini `generateContent`, returning a tiny
+deterministic PNG fixture. Unhandled non-local HTTP requests fail the test, so a
+changed provider URL cannot silently spend API tokens.
+
+```sh
+pnpm test      # build, unit tests, and the mocked HTTP end-to-end flow
+pnpm test:e2e  # build and run only the mocked HTTP end-to-end flow
+```
+
+`MSW` is test-only. The demo and published package do not enable mocks, and the
+mock server is never included in runtime code.
+
 ## License
 
 MIT

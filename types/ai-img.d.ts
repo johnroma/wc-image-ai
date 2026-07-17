@@ -1,3 +1,4 @@
+import type { MediaPrompt } from '@tanstack/ai';
 import { LitElement, type PropertyValues } from 'lit';
 export declare class AiImg extends LitElement {
     /**
@@ -8,12 +9,14 @@ export declare class AiImg extends LitElement {
     src: string;
     /** Server route that owns the API key, generation, storage and lookup. */
     endpoint: string;
-    /** Description used to generate the image (omit when fetching a known id). */
-    prompt: string;
+    /** Text or structured media prompt used to generate the image. */
+    prompt: MediaPrompt;
     /** Storage handle. Reflected after the server mints a new image. */
     imageId: string;
     /** Provider/model hint forwarded to the endpoint (e.g. "gemini", "openai"). */
     llm: string;
+    /** Exact image model forwarded to endpoints that support model selection. */
+    model: string;
     /** Aspect ratio forwarded to the endpoint and used to derive an omitted height. */
     ratio: string;
     /** Prefer a faster/lower-cost model when the selected provider supports it. */
@@ -46,7 +49,7 @@ export declare class AiImg extends LitElement {
     refresh(): void;
     debugState(): {
         src: string;
-        prompt: string;
+        prompt: MediaPrompt;
         imageId: string;
         status: "error" | "loading" | "idle" | "loaded";
         blobUrl: string;
