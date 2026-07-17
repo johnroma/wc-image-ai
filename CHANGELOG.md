@@ -1,5 +1,11 @@
 # wc-img-ai
 
+## 0.7.0
+
+### Minor Changes
+
+- fe5ca08: Add multi-image reference uploads to the demo with client/server validation, bounded image decoding, accessible loading states, and disconnect-aware provider cancellation.
+
 ## 0.6.0
 
 ### Minor Changes
