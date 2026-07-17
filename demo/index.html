@@ -13,8 +13,10 @@
         color: #222;
       }
       h1 { font-size: 1.4rem; }
-      .row { display: flex; gap: 0.5rem; margin: 1rem 0; }
-      input { flex: 1; padding: 0.5rem; font: inherit; }
+      .row { display: flex; gap: 0.5rem; margin: 1rem 0; align-items: center; }
+      input[type="text"] { flex: 1; padding: 0.5rem; font: inherit; }
+      .references { display: grid; gap: 0.35rem; margin: 1rem 0; }
+      .references small { color: #666; }
       button { padding: 0.5rem 1rem; font: inherit; cursor: pointer; }
       ai-img { border: 1px solid #eee; border-radius: 8px; }
       pre { background: #f6f6f6; padding: 0.75rem; border-radius: 8px; overflow-x: auto; }
@@ -24,39 +26,53 @@
   <body>
     <h1>&lt;ai-img&gt; demo</h1>
     <p>
-      Type a prompt and generate. The server mints an id, stores the PNG and
-      returns <code>{ id, url }</code>. Re-rendering with that
-      <code>image-id</code> fetches the stored image instead of calling the AI.
+      Type a prompt, optionally add reference images, and generate. The server
+      mints an id, stores the PNG and returns <code>{ id, url }</code>.
+      Re-rendering with that <code>image-id</code> fetches the stored image
+      instead of calling the AI.
     </p>
 
     <div class="row">
-      <input id="prompt" placeholder="a funny dolphin up to no good" value="a funny dolphin up to no good" />
-      <button type="button" id="go">Generate</button>
+      <label for="prompt">Prompt</label>
+      <input type="text" id="prompt" placeholder="a funny dolphin up to no good" value="a funny dolphin up to no good" />
+      <button type="button" id="go" aria-busy="false">Generate</button>
     </div>
+
+    <label class="references">
+      Reference images
+      <input
+        id="references"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        multiple
+      />
+      <small>Optional PNG, JPEG, or WebP files. Up to 4 files, 5 MiB each
+        and 10 MiB total. Selection order is preserved.</small>
+    </label>
 
     <div id="stage"></div>
 
-    <p>Last <code>ai-image</code> event:</p>
-    <pre id="event">—</pre>
+    <p>Generation status:</p>
+    <pre id="event" role="status" aria-live="polite" aria-atomic="true">—</pre>
 
     <script type="module" src="/dist/wc-img-ai.js"></script>
     <script type="module">
+      import { createGenerationFlow } from "/demo/media-prompt.js"
+
       const stage = document.getElementById("stage")
       const eventOut = document.getElementById("event")
+      const go = document.getElementById("go")
+      const generate = createGenerationFlow({
+        button: go,
+        status: eventOut,
+        stage,
+        createImage: () => document.createElement("ai-img"),
+      })
 
-      document.getElementById("go").addEventListener("click", () => {
+      go.addEventListener("click", () => {
         const prompt = document.getElementById("prompt").value
-        stage.innerHTML = ""
-        const el = document.createElement("ai-img")
-        el.setAttribute("endpoint", "/api/img")
-        el.setAttribute("prompt", prompt)
-        el.setAttribute("width", "256")
-        el.setAttribute("height", "256")
-        el.setAttribute("fallback", "https://placehold.co/256x256?text=fallback")
-        el.addEventListener("ai-image", (e) => {
-          eventOut.textContent = JSON.stringify(e.detail, null, 2)
-        })
-        stage.appendChild(el)
+        const files = document.getElementById("references").files ?? []
+        void generate(prompt, files)
       })
     </script>
   </body>

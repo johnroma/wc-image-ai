@@ -28,6 +28,8 @@ type BuiltinGenerateOptionsBase = {
     openaiModel?: OpenAiImageModel;
     /** Per-request timeout in milliseconds. Defaults to 90 000 (90 s). */
     timeoutMs?: number;
+    /** Optional caller cancellation, combined with the per-request timeout. */
+    signal?: AbortSignal;
 };
 type GeminiFlashOptions = {
     /** Regular Gemini Flash is selected when light is absent or false. */
@@ -65,6 +67,8 @@ export type CustomGenerateOptions = {
     generate: CustomImageGenerator;
     /** Per-request timeout in milliseconds. Defaults to 90 000 (90 s). */
     timeoutMs?: number;
+    /** Optional caller cancellation, combined with the per-request timeout. */
+    signal?: AbortSignal;
 };
 /** Built-in provider configuration or an explicitly selected custom transport. */
 export type GenerateOptions = BuiltinGenerateOptions | CustomGenerateOptions;

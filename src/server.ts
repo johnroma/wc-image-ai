@@ -70,6 +70,8 @@ type BuiltinGenerateOptionsBase = {
   openaiModel?: OpenAiImageModel
   /** Per-request timeout in milliseconds. Defaults to 90 000 (90 s). */
   timeoutMs?: number
+  /** Optional caller cancellation, combined with the per-request timeout. */
+  signal?: AbortSignal
 }
 
 type GeminiFlashOptions = {
@@ -117,6 +119,8 @@ export type CustomGenerateOptions = {
   generate: CustomImageGenerator
   /** Per-request timeout in milliseconds. Defaults to 90 000 (90 s). */
   timeoutMs?: number
+  /** Optional caller cancellation, combined with the per-request timeout. */
+  signal?: AbortSignal
 }
 
 /** Built-in provider configuration or an explicitly selected custom transport. */
@@ -145,16 +149,13 @@ async function callCustom(
   prompt: MediaPrompt,
   width: number,
   height: number,
-  timeoutMs: number,
+  signal: AbortSignal,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
-  const signal = AbortSignal.timeout(timeoutMs)
+  const abortError = () =>
+    signal.reason ?? new Error('custom image generation was aborted')
+  if (signal.aborted) throw abortError()
   const aborted = new Promise<never>((_, reject) => {
-    signal.addEventListener(
-      'abort',
-      () =>
-        reject(signal.reason ?? new Error('custom image generation timed out')),
-      { once: true },
-    )
+    signal.addEventListener('abort', () => reject(abortError()), { once: true })
   })
   const result = await Promise.race([
     generate({ prompt, width, height, signal }),
@@ -220,7 +221,7 @@ async function callOpenAIEdition(
   imageParts: ReadonlyArray<ImagePart>,
   size: string,
   model: string,
-  timeoutMs: number,
+  signal: AbortSignal,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
@@ -244,7 +245,7 @@ async function callOpenAIEdition(
     method: 'POST',
     headers: { Authorization: ['Bearer', apiKey].join(' ') },
     body: formData,
-    signal: AbortSignal.timeout(timeoutMs),
+    signal,
   })
 
   if (!response.ok) {
@@ -271,7 +272,7 @@ async function callOpenAI(
   mediaPrompt: MediaPrompt,
   size: string,
   model: string,
-  timeoutMs: number,
+  signal: AbortSignal,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
@@ -283,7 +284,7 @@ async function callOpenAI(
       resolved.images,
       size,
       model,
-      timeoutMs,
+      signal,
     )
   }
   const prompt = resolved.text
@@ -295,7 +296,7 @@ async function callOpenAI(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({ model, prompt, n: 1, size }),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal,
   })
 
   if (!response.ok) {
@@ -323,7 +324,7 @@ async function callGemini(
   width: number,
   height: number,
   model: string,
-  timeoutMs: number,
+  signal: AbortSignal,
   explicitRatio?: GeminiRatio,
   explicitImageSize?: GeminiImageSize,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
@@ -382,7 +383,7 @@ async function callGemini(
           },
         },
       }),
-      signal: AbortSignal.timeout(timeoutMs),
+      signal,
     },
   )
 
@@ -434,11 +435,16 @@ export async function generateImageBuffer(
   const w = requestedWidth ?? 1024
   const h = requestedHeight ?? 1024
   const timeoutMs = options.timeoutMs ?? 90_000
+  const timeoutSignal = AbortSignal.timeout(timeoutMs)
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeoutSignal])
+    : timeoutSignal
+  signal.throwIfAborted()
 
   let result: { buffer: Buffer; mimeType: string }
 
   if (options.provider === 'custom') {
-    result = await callCustom(options.generate, prompt, w, h, timeoutMs)
+    result = await callCustom(options.generate, prompt, w, h, signal)
   } else if ((options.provider ?? 'openai') === 'openai') {
     const model =
       options.openaiModel ??
@@ -447,12 +453,7 @@ export async function generateImageBuffer(
     if (!withinOpenaiRatio(w, h)) {
       throw new Error(`${w}x${h} exceeds ${model}'s 3:1 aspect-ratio limit`)
     }
-    result = await callOpenAI(
-      prompt,
-      openaiGenerationSize(w, h),
-      model,
-      timeoutMs,
-    )
+    result = await callOpenAI(prompt, openaiGenerationSize(w, h), model, signal)
   } else if (options.provider === 'gemini') {
     const model =
       options.geminiModel ??
@@ -464,7 +465,7 @@ export async function generateImageBuffer(
       w,
       h,
       model,
-      timeoutMs,
+      signal,
       options.aspectRatio,
       options.geminiImageSize,
     )
@@ -472,6 +473,7 @@ export async function generateImageBuffer(
     throw new Error(`Unknown provider: ${String(options.provider)}`)
   }
 
+  signal.throwIfAborted()
   return {
     ...result,
     width: requestedWidth ?? null,

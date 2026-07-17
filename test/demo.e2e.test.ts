@@ -1,10 +1,26 @@
 import fs from 'node:fs/promises'
+import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  createMediaPrompt,
+  MAX_PROMPT_TEXT_BYTES,
+  MAX_REFERENCE_FILE_BYTES,
+  MAX_STRUCTURED_PROMPT_PARTS,
+} from '../demo/media-prompt.js'
 import { createDemoServer } from '../demo/server.mjs'
 import { MOCK_IMAGE_BYTES, providerRequests } from './mocks/handlers'
+
+const UPLOADED_REFERENCE_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADklEQVQImWP4z8DwH4QBEfcD/RSF9bkAAAAASUVORK5CYII=',
+  'base64',
+)
+const SECOND_UPLOADED_REFERENCE_BYTES = Buffer.from(
+  'UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoBAAEAAUAmJaACdLoB+AADsAD+8ut//NgVzXPv9//S4P0uD9Lg/9KQAAA=',
+  'base64',
+)
 
 const cleanupDirectories: Array<string> = []
 
@@ -17,10 +33,10 @@ afterEach(async () => {
   )
 })
 
-async function startDemo() {
+async function startDemo(options = {}) {
   const imagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wc-img-ai-e2e-'))
   cleanupDirectories.push(imagesDir)
-  const server = createDemoServer({ imagesDir })
+  const server = createDemoServer({ imagesDir, ...options })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', resolve)
@@ -57,6 +73,17 @@ async function generate(
 }
 
 describe('demo provider flow with MSW', () => {
+  it('keeps mock mode opt-in while documenting both provider keys', async () => {
+    const example = await fs.readFile(
+      path.resolve(import.meta.dirname, '../.env.example'),
+      'utf8',
+    )
+    expect(example).not.toMatch(/^MSW=true$/m)
+    expect(example).toContain('# MSW=true')
+    expect(example).toContain('OPENAI_API_KEY=')
+    expect(example).toContain('GEMINI_API_KEY=')
+  })
+
   it('uses one MSW switch in Node and Vite browser contexts', () => {
     expect(process.env.MSW).toBe('true')
     expect(import.meta.env.MSW).toBe('true')
@@ -71,6 +98,29 @@ describe('demo provider flow with MSW', () => {
     expect(response.statusText).toBe('Unhandled Exception')
   })
 
+  it('serves the reference-image picker and browser prompt helper', async () => {
+    const demo = await startDemo()
+    try {
+      const page = await fetch(demo.baseUrl)
+      expect(page.status).toBe(200)
+      const html = await page.text()
+      expect(html).toContain('id="references"')
+      expect(html).toContain('accept="image/png,image/jpeg,image/webp"')
+      expect(html).toContain('for="prompt"')
+      expect(html).toContain('role="status"')
+      expect(html).toContain('aria-live="polite"')
+
+      const helper = await fetch(`${demo.baseUrl}/demo/media-prompt.js`)
+      expect(helper.status).toBe(200)
+      expect(helper.headers.get('content-type')).toContain(
+        'application/javascript',
+      )
+      expect(await helper.text()).toContain('export const createMediaPrompt')
+    } finally {
+      await demo.close()
+    }
+  })
+
   it('runs every provider route from the HTTP endpoint through stored image bytes', async () => {
     expect(process.env.MSW).toBe('true')
     vi.stubEnv('OPENAI_API_KEY', 'test-only-key')
@@ -79,17 +129,21 @@ describe('demo provider flow with MSW', () => {
     const demo = await startDemo()
     try {
       const openai = await generate(demo.baseUrl, 'openai')
-      const openaiEdit = await generate(demo.baseUrl, 'openai', [
-        { type: 'text', content: 'Restyle this mock reference.' },
-        {
-          type: 'image',
-          source: {
-            type: 'data',
-            value: MOCK_IMAGE_BYTES.toString('base64'),
-            mimeType: 'image/png',
-          },
-        },
-      ])
+      const uploadedFile = new File(
+        [UPLOADED_REFERENCE_BYTES],
+        'browser-upload.png',
+        { type: 'image/png' },
+      )
+      const secondUploadedFile = new File(
+        [SECOND_UPLOADED_REFERENCE_BYTES],
+        'browser-upload.webp',
+        { type: 'image/webp' },
+      )
+      const uploadPrompt = await createMediaPrompt(
+        'Restyle this mock reference.',
+        [uploadedFile, secondUploadedFile],
+      )
+      const openaiEdit = await generate(demo.baseUrl, 'openai', uploadPrompt)
       const gemini = await generate(demo.baseUrl, 'gemini')
 
       expect(openai.url).toMatch(/^\/images\/[A-Za-z0-9_-]+\.png$/)
@@ -110,15 +164,28 @@ describe('demo provider flow with MSW', () => {
         provider: 'openai',
         endpoint: '/v1/images/edits',
         body: {
-          model: 'gpt-image-2',
-          prompt: 'Restyle this mock reference.',
-          n: '1',
-          size: '1024x1024',
-          'image[]': {
-            name: 'reference-image-1.png',
-            size: MOCK_IMAGE_BYTES.byteLength,
-            type: 'image/png',
+          fields: {
+            model: 'gpt-image-2',
+            prompt: 'Restyle this mock reference.',
+            n: '1',
+            size: '1024x1024',
           },
+          files: [
+            {
+              field: 'image[]',
+              name: 'reference-image-1.png',
+              size: UPLOADED_REFERENCE_BYTES.byteLength,
+              type: 'image/png',
+              base64: UPLOADED_REFERENCE_BYTES.toString('base64'),
+            },
+            {
+              field: 'image[]',
+              name: 'reference-image-2.webp',
+              size: SECOND_UPLOADED_REFERENCE_BYTES.byteLength,
+              type: 'image/webp',
+              base64: SECOND_UPLOADED_REFERENCE_BYTES.toString('base64'),
+            },
+          ],
         },
       })
       expect(providerRequests[2]).toMatchObject({
@@ -132,6 +199,246 @@ describe('demo provider flow with MSW', () => {
           },
         },
       })
+    } finally {
+      await demo.close()
+    }
+  })
+
+  it('rejects malformed and oversized structured image prompts before a provider request', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-only-key')
+    const demo = await startDemo()
+    try {
+      const response = await fetch(`${demo.baseUrl}/api/img`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: [
+            { type: 'text', content: 'malformed upload' },
+            {
+              type: 'image',
+              source: {
+                type: 'data',
+                value: Buffer.from('not an image').toString('base64'),
+                mimeType: 'image/png',
+              },
+            },
+          ],
+          width: 1024,
+          height: 1024,
+          llm: 'openai',
+        }),
+      })
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({
+        error: expect.stringContaining('valid PNG, JPEG, or WebP'),
+      })
+
+      const oversizedImage = Buffer.alloc(MAX_REFERENCE_FILE_BYTES + 1)
+      MOCK_IMAGE_BYTES.copy(oversizedImage)
+      const oversizedResponse = await fetch(`${demo.baseUrl}/api/img`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: [
+            {
+              type: 'image',
+              source: {
+                type: 'data',
+                value: oversizedImage.toString('base64'),
+                mimeType: 'image/png',
+              },
+            },
+          ],
+          width: 1024,
+          height: 1024,
+          llm: 'openai',
+        }),
+      })
+      expect(oversizedResponse.status).toBe(400)
+      expect(await oversizedResponse.json()).toMatchObject({
+        error: expect.stringContaining('5 MiB'),
+      })
+      expect(providerRequests).toHaveLength(0)
+    } finally {
+      await demo.close()
+    }
+  })
+
+  it('rejects empty, excessive, and oversized structured text before a provider request', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-only-key')
+    const demo = await startDemo()
+    try {
+      const prompts = [
+        [{ type: 'text', content: '   ' }],
+        Array.from({ length: MAX_STRUCTURED_PROMPT_PARTS + 1 }, () => ({
+          type: 'text',
+          content: 'part',
+        })),
+        [{ type: 'text', content: 'x'.repeat(MAX_PROMPT_TEXT_BYTES + 1) }],
+      ]
+
+      for (const prompt of prompts) {
+        const response = await fetch(`${demo.baseUrl}/api/img`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ prompt, llm: 'openai' }),
+        })
+        expect(response.status).toBe(400)
+      }
+      expect(providerRequests).toHaveLength(0)
+    } finally {
+      await demo.close()
+    }
+  })
+
+  it('rejects truncated image payloads before a provider request', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-only-key')
+    const demo = await startDemo()
+    try {
+      const payloads: Array<[string, Buffer]> = [
+        ['image/png', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])],
+        ['image/jpeg', Buffer.from([255, 216, 255, 224])],
+        [
+          'image/webp',
+          Buffer.from([82, 73, 70, 70, 4, 0, 0, 0, 87, 69, 66, 80]),
+        ],
+      ]
+      for (const [mimeType, bytes] of payloads) {
+        const response = await fetch(`${demo.baseUrl}/api/img`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            prompt: [
+              { type: 'text', content: 'Restyle it.' },
+              {
+                type: 'image',
+                source: {
+                  type: 'data',
+                  value: bytes.toString('base64'),
+                  mimeType,
+                },
+              },
+            ],
+            llm: 'openai',
+          }),
+        })
+        expect(response.status).toBe(400)
+      }
+      expect(providerRequests).toHaveLength(0)
+    } finally {
+      await demo.close()
+    }
+  })
+
+  it('rejects structurally plausible but undecodable images before a provider request', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-only-key')
+    const demo = await startDemo()
+    try {
+      const malformedPng = Buffer.concat([
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+        Buffer.from([0, 0, 0, 13]),
+        Buffer.from('IHDR'),
+        Buffer.alloc(13),
+        Buffer.alloc(4),
+        Buffer.alloc(4),
+        Buffer.from('IDAT'),
+        Buffer.alloc(4),
+        Buffer.alloc(4),
+        Buffer.from('IEND'),
+        Buffer.alloc(4),
+      ])
+      const malformedWebp = Buffer.from([
+        82, 73, 70, 70, 12, 0, 0, 0, 87, 69, 66, 80, 86, 80, 56, 88, 0, 0, 0, 0,
+      ])
+      const malformedJpeg = Buffer.from([
+        0xff, 0xd8, 0xff, 0xc0, 0, 8, 0, 0, 0, 0, 0, 0, 0xff, 0xda, 0xff, 0xd9,
+      ])
+
+      for (const [mimeType, bytes] of [
+        ['image/png', malformedPng],
+        ['image/webp', malformedWebp],
+        ['image/jpeg', malformedJpeg],
+      ] as const) {
+        const response = await fetch(`${demo.baseUrl}/api/img`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            prompt: [
+              { type: 'text', content: 'Restyle it.' },
+              {
+                type: 'image',
+                source: {
+                  type: 'data',
+                  value: bytes.toString('base64'),
+                  mimeType,
+                },
+              },
+            ],
+            llm: 'openai',
+          }),
+        })
+
+        expect(response.status).toBe(400)
+      }
+      expect(providerRequests).toHaveLength(0)
+    } finally {
+      await demo.close()
+    }
+  })
+
+  it('bounds request-body reads', async () => {
+    const demo = await startDemo()
+    try {
+      const response = await fetch(`${demo.baseUrl}/api/img`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: 'x'.repeat(14 * 1024 * 1024 + 1),
+      })
+      expect(response.status).toBe(413)
+
+      const malformed = await fetch(`${demo.baseUrl}/api/img`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: 'null',
+      })
+      expect(malformed.status).toBe(400)
+    } finally {
+      await demo.close()
+    }
+  })
+
+  it('aborts downstream generation when the client disconnects', async () => {
+    let started!: () => void
+    const generationStarted = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    let downstreamSignal: AbortSignal | undefined
+    const generateImage = vi.fn(
+      (_prompt, _width, _height, options) =>
+        new Promise<never>((_resolve, reject) => {
+          downstreamSignal = options.signal
+          started()
+          options.signal.addEventListener(
+            'abort',
+            () => reject(options.signal.reason),
+            { once: true },
+          )
+        }),
+    )
+    const demo = await startDemo({ generateImage })
+    try {
+      const request = http.request(`${demo.baseUrl}/api/img`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+      })
+      request.on('error', () => undefined)
+      request.end(JSON.stringify({ prompt: 'cancel this generation' }))
+      await generationStarted
+      request.destroy()
+
+      await vi.waitFor(() => expect(downstreamSignal?.aborted).toBe(true))
+      expect(generateImage).toHaveBeenCalledOnce()
     } finally {
       await demo.close()
     }
