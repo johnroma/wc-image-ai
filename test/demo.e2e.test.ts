@@ -124,84 +124,175 @@ describe('demo provider flow with MSW', () => {
     }
   })
 
-  it('runs every provider route from the HTTP endpoint through stored image bytes', async () => {
+  it.each([
+    'openai',
+    'gemini',
+  ] as const)('preserves text-only, one-image, and two-image behavior for %s', async (provider) => {
     expect(process.env.MSW).toBe('true')
     vi.stubEnv('OPENAI_API_KEY', 'test-only-key')
     vi.stubEnv('GEMINI_API_KEY', 'test-only-key')
 
     const demo = await startDemo()
     try {
-      const openai = await generate(demo.baseUrl, 'openai')
-      const uploadedFile = new File(
+      const firstReference = new File(
         [UPLOADED_REFERENCE_BYTES],
         'browser-upload.png',
         { type: 'image/png' },
       )
-      const secondUploadedFile = new File(
+      const secondReference = new File(
         [SECOND_UPLOADED_REFERENCE_BYTES],
         'browser-upload.webp',
         { type: 'image/webp' },
       )
-      const uploadPrompt = await createMediaPrompt(
-        'Restyle this mock reference.',
-        [uploadedFile, secondUploadedFile],
+      const textOnly = await generate(demo.baseUrl, provider)
+      const oneImage = await generate(
+        demo.baseUrl,
+        provider,
+        await createMediaPrompt('Restyle this mock reference.', [
+          firstReference,
+        ]),
       )
-      const openaiEdit = await generate(demo.baseUrl, 'openai', uploadPrompt)
-      const gemini = await generate(demo.baseUrl, 'gemini')
+      const twoImages = await generate(
+        demo.baseUrl,
+        provider,
+        await createMediaPrompt(
+          'Use image 1 for structure and image 2 for color.',
+          [firstReference, secondReference],
+        ),
+      )
 
-      expect(openai.url).toMatch(/^\/images\/[A-Za-z0-9_-]+\.png$/)
-      expect(openaiEdit.url).toMatch(/^\/images\/[A-Za-z0-9_-]+\.png$/)
-      expect(gemini.url).toMatch(/^\/images\/[A-Za-z0-9_-]+\.png$/)
+      for (const result of [textOnly, oneImage, twoImages]) {
+        expect(result.url).toMatch(/^\/images\/[A-Za-z0-9_-]+\.png$/)
+      }
       expect(providerRequests).toHaveLength(3)
-      expect(providerRequests[0]).toMatchObject({
-        provider: 'openai',
-        endpoint: '/v1/images/generations',
-        body: {
-          model: 'gpt-image-2',
-          prompt: 'MSW end-to-end openai image',
-          n: 1,
-          size: '1024x1024',
-        },
-      })
-      expect(providerRequests[1]).toMatchObject({
-        provider: 'openai',
-        endpoint: '/v1/images/edits',
-        body: {
-          fields: {
-            model: 'gpt-image-2',
-            prompt: 'Restyle this mock reference.',
-            n: '1',
-            size: '1024x1024',
-          },
-          files: [
-            {
-              field: 'image[]',
-              name: 'reference-image-1.png',
-              size: UPLOADED_REFERENCE_BYTES.byteLength,
-              type: 'image/png',
-              base64: UPLOADED_REFERENCE_BYTES.toString('base64'),
+
+      if (provider === 'openai') {
+        expect(providerRequests).toEqual([
+          {
+            provider: 'openai',
+            endpoint: '/v1/images/generations',
+            body: {
+              model: 'gpt-image-2',
+              prompt: 'MSW end-to-end openai image',
+              n: 1,
+              size: '1024x1024',
             },
-            {
-              field: 'image[]',
-              name: 'reference-image-2.webp',
-              size: SECOND_UPLOADED_REFERENCE_BYTES.byteLength,
-              type: 'image/webp',
-              base64: SECOND_UPLOADED_REFERENCE_BYTES.toString('base64'),
+          },
+          {
+            provider: 'openai',
+            endpoint: '/v1/images/edits',
+            body: {
+              fields: {
+                model: 'gpt-image-2',
+                prompt: 'Restyle this mock reference.',
+                n: '1',
+                size: '1024x1024',
+              },
+              files: [
+                {
+                  field: 'image[]',
+                  name: 'reference-image-1.png',
+                  size: UPLOADED_REFERENCE_BYTES.byteLength,
+                  type: 'image/png',
+                  base64: UPLOADED_REFERENCE_BYTES.toString('base64'),
+                },
+              ],
             },
-          ],
-        },
-      })
-      expect(providerRequests[2]).toMatchObject({
-        provider: 'gemini',
-        endpoint: '/v1beta/models/gemini-3.1-flash-image:generateContent',
-        body: {
-          contents: [{ parts: [{ text: 'MSW end-to-end gemini image' }] }],
-          generationConfig: {
-            responseModalities: ['TEXT', 'IMAGE'],
-            imageConfig: { aspectRatio: '1:1', imageSize: '1K' },
+          },
+          {
+            provider: 'openai',
+            endpoint: '/v1/images/edits',
+            body: {
+              fields: {
+                model: 'gpt-image-2',
+                prompt: 'Use image 1 for structure and image 2 for color.',
+                n: '1',
+                size: '1024x1024',
+              },
+              files: [
+                {
+                  field: 'image[]',
+                  name: 'reference-image-1.png',
+                  size: UPLOADED_REFERENCE_BYTES.byteLength,
+                  type: 'image/png',
+                  base64: UPLOADED_REFERENCE_BYTES.toString('base64'),
+                },
+                {
+                  field: 'image[]',
+                  name: 'reference-image-2.webp',
+                  size: SECOND_UPLOADED_REFERENCE_BYTES.byteLength,
+                  type: 'image/webp',
+                  base64: SECOND_UPLOADED_REFERENCE_BYTES.toString('base64'),
+                },
+              ],
+            },
+          },
+        ])
+        return
+      }
+
+      const generationConfig = {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { aspectRatio: '1:1', imageSize: '1K' },
+      }
+      expect(providerRequests).toEqual([
+        {
+          provider: 'gemini',
+          endpoint: '/v1beta/models/gemini-3.1-flash-image:generateContent',
+          body: {
+            contents: [{ parts: [{ text: 'MSW end-to-end gemini image' }] }],
+            generationConfig,
           },
         },
-      })
+        {
+          provider: 'gemini',
+          endpoint: '/v1beta/models/gemini-3.1-flash-image:generateContent',
+          body: {
+            contents: [
+              {
+                parts: [
+                  { text: 'Restyle this mock reference.' },
+                  {
+                    inlineData: {
+                      data: UPLOADED_REFERENCE_BYTES.toString('base64'),
+                      mimeType: 'image/png',
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig,
+          },
+        },
+        {
+          provider: 'gemini',
+          endpoint: '/v1beta/models/gemini-3.1-flash-image:generateContent',
+          body: {
+            contents: [
+              {
+                parts: [
+                  {
+                    text: 'Use image 1 for structure and image 2 for color.',
+                  },
+                  {
+                    inlineData: {
+                      data: UPLOADED_REFERENCE_BYTES.toString('base64'),
+                      mimeType: 'image/png',
+                    },
+                  },
+                  {
+                    inlineData: {
+                      data: SECOND_UPLOADED_REFERENCE_BYTES.toString('base64'),
+                      mimeType: 'image/webp',
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig,
+          },
+        },
+      ])
     } finally {
       await demo.close()
     }
