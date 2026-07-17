@@ -24,6 +24,7 @@ import { generateImageBuffer as defaultGenerateImageBuffer } from '../dist/serve
 import {
   detectImageMimeType,
   MAX_PROMPT_TEXT_BYTES,
+  MAX_REFERENCE_DIMENSION,
   MAX_REFERENCE_FILE_BYTES,
   MAX_REFERENCE_IMAGES,
   MAX_REFERENCE_PIXELS,
@@ -37,6 +38,24 @@ const PORT = parseInt(process.env.PORT || '3000', 10)
 const DEFAULT_IMAGES_DIR = path.join(root, 'images')
 /** Maximum JSON request size, including up to 10 MiB of base64 image data. */
 export const MAX_REQUEST_BODY_BYTES = 14 * 1024 * 1024
+/** Bound bodies retained by concurrent generation requests in this demo server. */
+export const MAX_CONCURRENT_IMAGE_REQUESTS = 4
+const MAX_CACHE_LOOKUP_BODY_BYTES = 1024
+const MAX_CONCURRENT_CACHE_LOOKUPS = 4
+
+function createAdmission(limit) {
+  let active = 0
+  return {
+    tryAcquire() {
+      if (active >= limit) return false
+      active += 1
+      return true
+    },
+    release() {
+      active -= 1
+    },
+  }
+}
 
 function json(res, status, payload) {
   if (res.destroyed || res.writableEnded) return
@@ -102,6 +121,8 @@ const MAX_CONCURRENT_IMAGE_DECODES = 2
 let activeImageDecodes = 0
 const imageDecodeQueue = []
 
+class ImageDimensionsError extends RangeError {}
+
 function acquireImageDecode(signal) {
   signal.throwIfAborted()
   if (activeImageDecodes < MAX_CONCURRENT_IMAGE_DECODES) {
@@ -138,13 +159,28 @@ async function assertDecodableImage(bytes, signal) {
   await acquireImageDecode(signal)
   try {
     signal.throwIfAborted()
-    await sharp(bytes, {
+    const image = sharp(bytes, {
       failOn: 'warning',
       limitInputPixels: MAX_REFERENCE_PIXELS,
-    }).stats()
+    })
+    const { width, height } = await image.metadata()
+    if (
+      !width ||
+      !height ||
+      width > MAX_REFERENCE_DIMENSION ||
+      height > MAX_REFERENCE_DIMENSION ||
+      width * height > MAX_REFERENCE_PIXELS
+    ) {
+      throw new ImageDimensionsError(
+        `Reference image dimensions must not exceed ${MAX_REFERENCE_DIMENSION} px per side or ${MAX_REFERENCE_PIXELS} total pixels.`,
+      )
+    }
     signal.throwIfAborted()
-  } catch {
+    await image.stats()
+    signal.throwIfAborted()
+  } catch (error) {
     if (signal.aborted) throw signal.reason
+    if (error instanceof ImageDimensionsError) throw error
     throw new TypeError(
       'Reference image does not contain a valid PNG, JPEG, or WebP image.',
     )
@@ -243,11 +279,51 @@ async function validatePrompt(prompt, signal) {
 }
 
 function imagePath(imagesDir, id) {
-  if (!/^[A-Za-z0-9_-]+$/.test(id)) return null
+  if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{21}$/.test(id)) return null
   return path.join(imagesDir, `${id}.png`)
 }
 
-async function handleRequest(imagesDir, generateImageBuffer, req, res) {
+async function serveCacheHitAtCapacity(imagesDir, req, res) {
+  const declaredLength = Number(req.headers['content-length'])
+  if (
+    !Number.isSafeInteger(declaredLength) ||
+    declaredLength <= 0 ||
+    declaredLength > MAX_CACHE_LOOKUP_BODY_BYTES
+  ) {
+    req.resume()
+    return json(res, 503, { error: 'image generation capacity reached' })
+  }
+
+  try {
+    const body = JSON.parse(await readBody(req, MAX_CACHE_LOOKUP_BODY_BYTES))
+    if (
+      body &&
+      typeof body === 'object' &&
+      !Array.isArray(body) &&
+      body.imageId
+    ) {
+      const cachedPath = imagePath(imagesDir, body.imageId)
+      if (cachedPath && fs.existsSync(cachedPath)) {
+        return json(res, 200, {
+          id: body.imageId,
+          url: `/images/${body.imageId}.png`,
+        })
+      }
+    }
+  } catch {
+    // A malformed or oversized request cannot be a safe cache lookup.
+  }
+  return json(res, 503, { error: 'image generation capacity reached' })
+}
+
+async function handleRequest(
+  imagesDir,
+  generateImageBuffer,
+  imageRequestAdmission,
+  cacheLookupAdmission,
+  req,
+  res,
+) {
   const controller = new AbortController()
   const abort = () => {
     if (!controller.signal.aborted)
@@ -264,63 +340,78 @@ async function handleRequest(imagesDir, generateImageBuffer, req, res) {
   const url = new URL(req.url, `http://localhost:${PORT}`)
 
   if (req.method === 'POST' && url.pathname === '/api/img') {
-    let body
-    try {
-      body = JSON.parse((await readBody(req)) || '{}')
-    } catch (error) {
-      if (error?.status === 413) {
-        return json(res, 413, { error: 'request body too large' })
+    if (!imageRequestAdmission.tryAcquire()) {
+      if (!cacheLookupAdmission.tryAcquire()) {
+        req.resume()
+        return json(res, 503, { error: 'image generation capacity reached' })
       }
-      return json(res, 400, { error: 'invalid JSON' })
-    }
-
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return json(res, 400, { error: 'request body must be a JSON object' })
-    }
-
-    const { prompt, imageId, width, height, llm, ratio } = body
-
-    if (imageId) {
-      const p = imagePath(imagesDir, imageId)
-      if (p && fs.existsSync(p)) {
-        return json(res, 200, { id: imageId, url: `/images/${imageId}.png` })
+      try {
+        return await serveCacheHitAtCapacity(imagesDir, req, res)
+      } finally {
+        cacheLookupAdmission.release()
       }
     }
-
-    if (!prompt) return json(res, 404, { error: 'not found' })
-
-    if (signal.aborted) return
     try {
-      await validatePrompt(prompt, signal)
-      signal.throwIfAborted()
-    } catch (error) {
-      if (signal.aborted) return
-      return json(res, 400, {
-        error: error instanceof Error ? error.message : 'invalid prompt',
-      })
-    }
+      let body
+      try {
+        body = JSON.parse((await readBody(req)) || '{}')
+      } catch (error) {
+        if (error?.status === 413) {
+          return json(res, 413, { error: 'request body too large' })
+        }
+        return json(res, 400, { error: 'invalid JSON' })
+      }
 
-    try {
-      const { buffer, mimeType } = await generateImageBuffer(
-        prompt,
-        width ?? 0,
-        height ?? 0,
-        {
-          provider: llm,
-          aspectRatio: ratio,
-          signal,
-        },
-      )
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return json(res, 400, { error: 'request body must be a JSON object' })
+      }
+
+      const { prompt, imageId, width, height, llm, ratio } = body
+
+      if (imageId) {
+        const p = imagePath(imagesDir, imageId)
+        if (p && fs.existsSync(p)) {
+          return json(res, 200, { id: imageId, url: `/images/${imageId}.png` })
+        }
+      }
+
+      if (!prompt) return json(res, 404, { error: 'not found' })
+
       if (signal.aborted) return
-      const id = nanoid()
-      const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png'
-      fs.writeFileSync(path.join(imagesDir, `${id}.${ext}`), buffer)
-      return json(res, 200, { id, url: `/images/${id}.${ext}` })
-    } catch (err) {
-      if (signal.aborted) return
-      return json(res, 502, {
-        error: err instanceof Error ? err.message : 'generation failed',
-      })
+      try {
+        await validatePrompt(prompt, signal)
+        signal.throwIfAborted()
+      } catch (error) {
+        if (signal.aborted) return
+        return json(res, 400, {
+          error: error instanceof Error ? error.message : 'invalid prompt',
+        })
+      }
+
+      try {
+        const { buffer, mimeType } = await generateImageBuffer(
+          prompt,
+          width ?? 0,
+          height ?? 0,
+          {
+            provider: llm,
+            aspectRatio: ratio,
+            signal,
+          },
+        )
+        if (signal.aborted) return
+        const id = nanoid()
+        const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png'
+        fs.writeFileSync(path.join(imagesDir, `${id}.${ext}`), buffer)
+        return json(res, 200, { id, url: `/images/${id}.${ext}` })
+      } catch (err) {
+        if (signal.aborted) return
+        return json(res, 502, {
+          error: err instanceof Error ? err.message : 'generation failed',
+        })
+      }
+    } finally {
+      imageRequestAdmission.release()
     }
   }
 
@@ -391,8 +482,17 @@ export function createDemoServer({
   generateImageBuffer = generateImage,
 } = {}) {
   fs.mkdirSync(imagesDir, { recursive: true })
+  const imageRequestAdmission = createAdmission(MAX_CONCURRENT_IMAGE_REQUESTS)
+  const cacheLookupAdmission = createAdmission(MAX_CONCURRENT_CACHE_LOOKUPS)
   return http.createServer((req, res) =>
-    handleRequest(imagesDir, generateImageBuffer, req, res),
+    handleRequest(
+      imagesDir,
+      generateImageBuffer,
+      imageRequestAdmission,
+      cacheLookupAdmission,
+      req,
+      res,
+    ),
   )
 }
 

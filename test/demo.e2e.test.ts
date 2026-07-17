@@ -3,10 +3,12 @@ import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import sharp from 'sharp'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createMediaPrompt,
   MAX_PROMPT_TEXT_BYTES,
+  MAX_REFERENCE_DIMENSION,
   MAX_REFERENCE_FILE_BYTES,
   MAX_STRUCTURED_PROMPT_PARTS,
 } from '../demo/media-prompt.js'
@@ -44,6 +46,7 @@ async function startDemo(options = {}) {
   const { port } = server.address() as AddressInfo
   return {
     baseUrl: `http://127.0.0.1:${port}`,
+    imagesDir,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   }
 }
@@ -387,6 +390,49 @@ describe('demo provider flow with MSW', () => {
     }
   })
 
+  it('rejects reference images whose decoded dimensions exceed the browser limit', async () => {
+    const tooWide = await sharp({
+      create: {
+        width: MAX_REFERENCE_DIMENSION + 1,
+        height: 1,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer()
+    const generateImage = vi.fn()
+    const demo = await startDemo({ generateImage })
+
+    try {
+      const response = await fetch(`${demo.baseUrl}/api/img`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: [
+            { type: 'text', content: 'Restyle it.' },
+            {
+              type: 'image',
+              source: {
+                type: 'data',
+                value: tooWide.toString('base64'),
+                mimeType: 'image/png',
+              },
+            },
+          ],
+        }),
+      })
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({
+        error: expect.stringContaining(`${MAX_REFERENCE_DIMENSION}`),
+      })
+      expect(generateImage).not.toHaveBeenCalled()
+    } finally {
+      await demo.close()
+    }
+  })
+
   it('bounds request-body reads', async () => {
     const demo = await startDemo()
     try {
@@ -440,6 +486,85 @@ describe('demo provider flow with MSW', () => {
       await vi.waitFor(() => expect(downstreamSignal?.aborted).toBe(true))
       expect(generateImage).toHaveBeenCalledOnce()
     } finally {
+      await demo.close()
+    }
+  })
+
+  it('rejects excess concurrent image requests before retaining their bodies', async () => {
+    const generateImage = vi.fn(
+      (_prompt, _width, _height, options) =>
+        new Promise<never>((_resolve, reject) => {
+          options.signal.addEventListener(
+            'abort',
+            () => reject(options.signal.reason),
+            { once: true },
+          )
+        }),
+    )
+    const demo = await startDemo({ generateImage })
+    const controllers = Array.from({ length: 4 }, () => new AbortController())
+
+    try {
+      const cachedImageId = 'AbCdEfGhIjKlMnOpQrStU'
+      await fs.writeFile(
+        path.join(demo.imagesDir, `${cachedImageId}.png`),
+        MOCK_IMAGE_BYTES,
+      )
+      const activeRequests = controllers.map((controller, index) =>
+        fetch(`${demo.baseUrl}/api/img`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ prompt: `hold request ${index}` }),
+          signal: controller.signal,
+        }).catch(() => undefined),
+      )
+      await vi.waitFor(() => expect(generateImage).toHaveBeenCalledTimes(4))
+
+      const cacheHit = await fetch(`${demo.baseUrl}/api/img`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ imageId: cachedImageId }),
+      })
+      expect(cacheHit.status).toBe(200)
+      expect(await cacheHit.json()).toEqual({
+        id: cachedImageId,
+        url: `/images/${cachedImageId}.png`,
+      })
+
+      await fs.writeFile(
+        path.join(demo.imagesDir, 'short-id.png'),
+        MOCK_IMAGE_BYTES,
+      )
+      const invalidCacheLookups = ['../../package', 'short-id', 42]
+      for (const imageId of invalidCacheLookups) {
+        const invalidCacheLookup = await fetch(`${demo.baseUrl}/api/img`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ imageId }),
+        })
+        expect(invalidCacheLookup.status).toBe(503)
+      }
+
+      const response = await fetch(`${demo.baseUrl}/api/img`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt: 'reject this request' }),
+      })
+
+      expect(response.status).toBe(503)
+      expect(await response.json()).toEqual({
+        error: 'image generation capacity reached',
+      })
+      expect(generateImage).toHaveBeenCalledTimes(4)
+
+      controllers.forEach((controller) => {
+        controller.abort()
+      })
+      await Promise.all(activeRequests)
+    } finally {
+      controllers.forEach((controller) => {
+        controller.abort()
+      })
       await demo.close()
     }
   })
