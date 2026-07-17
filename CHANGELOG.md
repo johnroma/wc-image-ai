@@ -1,5 +1,11 @@
 # wc-img-ai
 
+## 0.6.0
+
+### Minor Changes
+
+- 07607c4: Add multimodal image prompts with reference-image support for OpenAI and Gemini.
+
 ## 0.5.1
 
 ### Patch Changes
