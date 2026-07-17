@@ -1,236 +1,402 @@
+import type { MediaPromptPart } from '@tanstack/ai'
+import { HttpResponse, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateImageBuffer } from '../src/server.js'
+import { MOCK_IMAGE_BYTES, providerRequests } from './mocks/handlers'
+import { providerMockServer } from './mocks/server'
 
 const OPENAI_GENERATIONS_URL = 'https://api.openai.com/v1/images/generations'
-const OPENAI_EDITS_URL = 'https://api.openai.com/v1/images/edits'
+const GEMINI_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models/:model\\:generateContent'
 
-const openAiImageResponse = (bytes: string) =>
-  Response.json({
-    data: [{ b64_json: Buffer.from(bytes).toString('base64') }],
-  })
+const imagePart = (
+  value: string,
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp' = 'image/png',
+) => ({
+  type: 'image' as const,
+  source: {
+    type: 'data' as const,
+    value: Buffer.from(value).toString('base64'),
+    mimeType,
+  },
+})
 
-describe('OpenAI reference-image routing', () => {
+describe('generateImageBuffer with mocked provider uploads', () => {
   beforeEach(() => {
-    vi.stubEnv('OPENAI_API_KEY', 'test-only-key')
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => {
-        throw new Error('Unexpected live network request')
-      }),
-    )
+    vi.stubEnv('OPENAI_API_KEY', 'test-only-openai-key')
+    vi.stubEnv('GEMINI_API_KEY', 'test-only-gemini-key')
   })
 
   afterEach(() => {
     vi.unstubAllEnvs()
-    vi.unstubAllGlobals()
   })
 
-  it('keeps text-only requests on images/generations with JSON', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(openAiImageResponse('generated'))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await generateImageBuffer('draw a tiny rocket', 1024, 1024, {
-      provider: 'openai',
-    })
-
-    expect(result.buffer.toString()).toBe('generated')
-    expect(fetchMock).toHaveBeenCalledOnce()
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe(OPENAI_GENERATIONS_URL)
-    expect(init.headers).toMatchObject({
-      'Content-Type': 'application/json',
-      Authorization: ['Bearer', 'test-only-key'].join(' '),
-    })
-    expect(JSON.parse(init.body as string)).toMatchObject({
-      prompt: 'draw a tiny rocket',
-      n: 1,
-      size: '1024x1024',
-    })
-  })
-
-  it('combines ordered text and image prompt parts in one edit request', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(openAiImageResponse('edited'))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await generateImageBuffer(
-      [
-        { type: 'text', content: 'turn image 1 into a blueprint' },
+  describe('OpenAI', () => {
+    it('mocks a text-only generation without making a live request', async () => {
+      const result = await generateImageBuffer(
+        'draw a tiny rocket',
+        1024,
+        1024,
         {
-          type: 'image',
-          source: {
-            type: 'data',
-            value: Buffer.from('reference').toString('base64'),
-            mimeType: 'image/png',
+          provider: 'openai',
+        },
+      )
+
+      expect(result).toEqual({
+        buffer: MOCK_IMAGE_BYTES,
+        mimeType: 'image/png',
+        width: 1024,
+        height: 1024,
+      })
+      expect(providerRequests).toEqual([
+        {
+          provider: 'openai',
+          endpoint: '/v1/images/generations',
+          body: {
+            model: 'gpt-image-2',
+            prompt: 'draw a tiny rocket',
+            n: 1,
+            size: '1024x1024',
           },
         },
-      ],
-      1024,
-      1024,
-      { provider: 'openai' },
-    )
+      ])
+    })
 
-    expect(result.buffer.toString()).toBe('edited')
-    expect(fetchMock).toHaveBeenCalledOnce()
-
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe(OPENAI_EDITS_URL)
-    expect(init.headers).toHaveProperty('Authorization')
-    expect(init.body).toBeInstanceOf(FormData)
-
-    const formData = init.body as FormData
-    expect(formData.get('prompt')).toBe('turn image 1 into a blueprint')
-    expect(formData.get('model')).toBe('gpt-image-2')
-    expect(formData.get('n')).toBe('1')
-    expect(formData.get('size')).toBe('1024x1024')
-    const image = formData.get('image[]')
-    expect(image).toBeInstanceOf(Blob)
-    expect((image as Blob).type).toBe('image/png')
-    expect((image as File).name).toBe('reference-image-1.png')
-    expect(await (image as Blob).text()).toBe('reference')
-  })
-
-  it.each([
-    [
-      'a URL source',
-      { type: 'url', value: 'https://example.test/image.png' },
-      'must use a data source',
-    ],
-    [
-      'empty image data',
-      { type: 'data', value: '', mimeType: 'image/png' },
-      'is empty',
-    ],
-    [
-      'an unsupported MIME type',
-      {
-        type: 'data',
-        value: Buffer.from('image').toString('base64'),
-        mimeType: 'image/svg+xml',
-      },
-      'unsupported MIME type',
-    ],
-  ])('rejects %s before making a request', async (_label, source, message) => {
-    const fetchMock = vi.mocked(fetch)
-
-    await expect(
-      generateImageBuffer(
+    it('mocks the complete multipart upload for a reference-image edit', async () => {
+      const result = await generateImageBuffer(
         [
-          { type: 'text', content: 'edit image 1' },
-          { type: 'image', source },
+          { type: 'text', content: 'turn image 1 into a blueprint' },
+          imagePart('reference'),
         ],
         1024,
         1024,
         { provider: 'openai' },
-      ),
-    ).rejects.toThrow(message)
+      )
 
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
+      expect(result.buffer).toEqual(MOCK_IMAGE_BYTES)
+      expect(providerRequests).toEqual([
+        {
+          provider: 'openai',
+          endpoint: '/v1/images/edits',
+          body: {
+            fields: {
+              model: 'gpt-image-2',
+              prompt: 'turn image 1 into a blueprint',
+              n: '1',
+              size: '1024x1024',
+            },
+            files: [
+              {
+                field: 'image[]',
+                name: 'reference-image-1.png',
+                type: 'image/png',
+                size: Buffer.byteLength('reference'),
+                base64: Buffer.from('reference').toString('base64'),
+              },
+            ],
+          },
+        },
+      ])
+    })
 
-  it('preserves all image parts and combines text parts verbatim', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(openAiImageResponse('edited'))
-    vi.stubGlobal('fetch', fetchMock)
+    it('mocks every uploaded reference image without collapsing duplicate fields', async () => {
+      await generateImageBuffer(
+        [
+          { type: 'text', content: 'Use image 1 for structure.' },
+          imagePart('first'),
+          { type: 'text', content: 'Use image 2 for color.' },
+          imagePart('second', 'image/webp'),
+        ],
+        1024,
+        1024,
+        { provider: 'openai' },
+      )
 
-    await generateImageBuffer(
+      expect(providerRequests[0]?.body).toEqual({
+        fields: {
+          model: 'gpt-image-2',
+          prompt: 'Use image 1 for structure.\n\nUse image 2 for color.',
+          n: '1',
+          size: '1024x1024',
+        },
+        files: [
+          expect.objectContaining({
+            field: 'image[]',
+            name: 'reference-image-1.png',
+            type: 'image/png',
+            base64: Buffer.from('first').toString('base64'),
+          }),
+          expect.objectContaining({
+            field: 'image[]',
+            name: 'reference-image-2.webp',
+            type: 'image/webp',
+            base64: Buffer.from('second').toString('base64'),
+          }),
+        ],
+      })
+    })
+
+    it.each([
       [
-        { type: 'text', content: 'Use image 1 for structure.' },
-        {
-          type: 'image',
-          source: {
-            type: 'data',
-            value: Buffer.from('first').toString('base64'),
-            mimeType: 'image/png',
-          },
-        },
-        { type: 'text', content: 'Use image 2 for color.' },
-        {
-          type: 'image',
-          source: {
-            type: 'data',
-            value: Buffer.from('second').toString('base64'),
-            mimeType: 'image/webp',
-          },
-        },
+        'a URL source',
+        { type: 'url', value: 'https://example.test/image.png' },
+        'must use a data source',
       ],
-      1024,
-      1024,
-      { provider: 'openai' },
-    )
+      [
+        'empty image data',
+        { type: 'data', value: '', mimeType: 'image/png' },
+        'is empty',
+      ],
+      [
+        'an unsupported MIME type',
+        {
+          type: 'data',
+          value: Buffer.from('image').toString('base64'),
+          mimeType: 'image/svg+xml',
+        },
+        'unsupported MIME type',
+      ],
+    ])('rejects %s before attempting an upload', async (_label, source, message) => {
+      await expect(
+        generateImageBuffer(
+          [
+            { type: 'text', content: 'edit image 1' },
+            { type: 'image', source } as MediaPromptPart,
+          ],
+          1024,
+          1024,
+          { provider: 'openai' },
+        ),
+      ).rejects.toThrow(message)
 
-    const formData = fetchMock.mock.calls[0][1].body as FormData
-    expect(formData.get('prompt')).toBe(
-      'Use image 1 for structure.\n\nUse image 2 for color.',
-    )
-    expect(formData.getAll('image[]')).toHaveLength(2)
-    expect(
-      await Promise.all(
-        formData.getAll('image[]').map((image) => (image as Blob).text()),
-      ),
-    ).toEqual(['first', 'second'])
+      expect(providerRequests).toHaveLength(0)
+    })
+
+    it.each([
+      [
+        'JSON',
+        HttpResponse.json(
+          { error: { message: 'mocked OpenAI rejection' } },
+          { status: 429 },
+        ),
+        'mocked OpenAI rejection',
+      ],
+      [
+        'plain text',
+        new HttpResponse('mocked gateway failure', { status: 502 }),
+        'mocked gateway failure',
+      ],
+    ])('surfaces a mocked %s provider error', async (_label, response, message) => {
+      providerMockServer.use(http.post(OPENAI_GENERATIONS_URL, () => response))
+
+      await expect(
+        generateImageBuffer('draw a tiny rocket', 1024, 1024, {
+          provider: 'openai',
+        }),
+      ).rejects.toThrow(message)
+    })
+
+    it('rejects a mocked success response with no image data', async () => {
+      providerMockServer.use(
+        http.post(OPENAI_GENERATIONS_URL, () =>
+          HttpResponse.json({ data: [{}] }),
+        ),
+      )
+
+      await expect(
+        generateImageBuffer('draw a tiny rocket', 1024, 1024, {
+          provider: 'openai',
+        }),
+      ).rejects.toThrow('returned no image data')
+    })
+
+    it('fails before the mock endpoint when the API key is missing', async () => {
+      vi.stubEnv('OPENAI_API_KEY', '')
+
+      await expect(
+        generateImageBuffer('draw a tiny rocket', 1024, 1024, {
+          provider: 'openai',
+        }),
+      ).rejects.toThrow('OPENAI_API_KEY is not set')
+      expect(providerRequests).toHaveLength(0)
+    })
   })
-})
 
-describe('Gemini multimodal prompt routing', () => {
-  beforeEach(() => {
-    vi.stubEnv('GEMINI_API_KEY', 'test-only-key')
-  })
+  describe('Gemini', () => {
+    it('mocks a multimodal request with text and image parts intact', async () => {
+      const reference = imagePart('reference')
+      const result = await generateImageBuffer(
+        [{ type: 'text', content: 'Restyle this reference.' }, reference],
+        1024,
+        1024,
+        { provider: 'gemini' },
+      )
 
-  afterEach(() => {
-    vi.unstubAllEnvs()
-    vi.unstubAllGlobals()
-  })
-
-  it('keeps text and image parts together in generateContent', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      Response.json({
-        candidates: [
-          {
-            content: {
+      expect(result.buffer).toEqual(MOCK_IMAGE_BYTES)
+      expect(providerRequests).toHaveLength(1)
+      expect(providerRequests[0]).toMatchObject({
+        provider: 'gemini',
+        endpoint: '/v1beta/models/gemini-3.1-flash-image:generateContent',
+        body: {
+          contents: [
+            {
               parts: [
+                { text: 'Restyle this reference.' },
                 {
                   inlineData: {
-                    data: Buffer.from('generated').toString('base64'),
+                    data: reference.source.value,
                     mimeType: 'image/png',
                   },
                 },
               ],
             },
+          ],
+          generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE'],
+            imageConfig: { aspectRatio: '1:1', imageSize: '1K' },
           },
-        ],
-      }),
-    )
-    vi.stubGlobal('fetch', fetchMock)
+        },
+      })
+    })
 
-    await generateImageBuffer(
+    it.each([
       [
-        { type: 'text', content: 'Restyle this reference.' },
-        {
-          type: 'image',
-          source: {
-            type: 'data',
-            value: Buffer.from('reference').toString('base64'),
-            mimeType: 'image/png',
-          },
-        },
+        'JSON',
+        HttpResponse.json(
+          { error: { message: 'mocked Gemini rejection' } },
+          { status: 429 },
+        ),
+        'mocked Gemini rejection',
       ],
-      1024,
-      1024,
-      { provider: 'gemini' },
-    )
+      [
+        'plain text',
+        new HttpResponse('mocked Gemini gateway failure', { status: 502 }),
+        'mocked Gemini gateway failure',
+      ],
+    ])('surfaces a mocked %s provider error', async (_label, response, message) => {
+      providerMockServer.use(http.post(GEMINI_URL, () => response))
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
-    expect(body.contents[0].parts).toEqual([
-      { text: 'Restyle this reference.' },
-      {
-        inlineData: {
-          data: Buffer.from('reference').toString('base64'),
-          mimeType: 'image/png',
-        },
-      },
-    ])
+      await expect(
+        generateImageBuffer('draw a tiny rocket', 1024, 1024, {
+          provider: 'gemini',
+        }),
+      ).rejects.toThrow(message)
+    })
+
+    it('rejects a mocked success response with no image data', async () => {
+      providerMockServer.use(
+        http.post(GEMINI_URL, () =>
+          HttpResponse.json({ candidates: [{ content: { parts: [] } }] }),
+        ),
+      )
+
+      await expect(
+        generateImageBuffer('draw a tiny rocket', 1024, 1024, {
+          provider: 'gemini',
+        }),
+      ).rejects.toThrow('returned no image data')
+    })
+
+    it('fails before the mock endpoint when the API key is missing', async () => {
+      vi.stubEnv('GEMINI_API_KEY', '')
+
+      await expect(
+        generateImageBuffer('draw a tiny rocket', 1024, 1024, {
+          provider: 'gemini',
+        }),
+      ).rejects.toThrow('GEMINI_API_KEY is not set')
+      expect(providerRequests).toHaveLength(0)
+    })
+  })
+
+  describe('custom and validation paths', () => {
+    it('uses a custom generator without any outbound request', async () => {
+      const generate = vi.fn().mockResolvedValue({
+        buffer: new Uint8Array([1, 2, 3]),
+        mimeType: 'image/webp',
+      })
+
+      const result = await generateImageBuffer('custom', 320, 180, {
+        provider: 'custom',
+        generate,
+      })
+
+      expect(result).toEqual({
+        buffer: Buffer.from([1, 2, 3]),
+        mimeType: 'image/webp',
+        width: 320,
+        height: 180,
+      })
+      expect(generate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'custom',
+          width: 320,
+          height: 180,
+          signal: expect.any(AbortSignal),
+        }),
+      )
+      expect(providerRequests).toHaveLength(0)
+    })
+
+    it.each([
+      [
+        'empty bytes',
+        { buffer: new Uint8Array(), mimeType: 'image/png' },
+        'empty or invalid buffer',
+      ],
+      [
+        'a non-image MIME type',
+        { buffer: new Uint8Array([1]), mimeType: 'text/plain' },
+        'invalid MIME type',
+      ],
+    ])('rejects custom generators returning %s', async (_label, result, message) => {
+      await expect(
+        generateImageBuffer('custom', 320, 180, {
+          provider: 'custom',
+          generate: async () => result as never,
+        }),
+      ).rejects.toThrow(message)
+    })
+
+    it('rejects oversized dimensions before contacting a provider', async () => {
+      await expect(
+        generateImageBuffer('large', 4097, 1024, { provider: 'openai' }),
+      ).rejects.toThrow('cannot exceed 4096px')
+      expect(providerRequests).toHaveLength(0)
+    })
+
+    it('rejects an unknown provider before any request', async () => {
+      await expect(
+        generateImageBuffer('unknown', 1024, 1024, {
+          // @ts-expect-error verifies the runtime guard for JavaScript consumers.
+          provider: 'other',
+        }),
+      ).rejects.toThrow('Unknown provider: other')
+      expect(providerRequests).toHaveLength(0)
+    })
+
+    it('propagates a caller abort signal to custom generation', async () => {
+      const controller = new AbortController()
+      let downstreamSignal: AbortSignal | undefined
+      const generate = vi.fn(
+        ({ signal }: { signal: AbortSignal }) =>
+          new Promise<never>((_resolve, reject) => {
+            downstreamSignal = signal
+            signal.addEventListener('abort', () => reject(signal.reason), {
+              once: true,
+            })
+          }),
+      )
+
+      const pending = generateImageBuffer('cancel me', 320, 180, {
+        provider: 'custom',
+        generate,
+        signal: controller.signal,
+      })
+      controller.abort(new Error('client disconnected'))
+
+      await expect(pending).rejects.toThrow('client disconnected')
+      expect(downstreamSignal?.aborted).toBe(true)
+    })
   })
 })

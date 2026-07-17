@@ -11,6 +11,19 @@ export type ProviderRequest = {
   body: unknown
 }
 
+export type MockUploadedFile = {
+  field: string
+  name: string
+  type: string
+  size: number
+  base64: string
+}
+
+export type MockMultipartBody = {
+  fields: Record<string, string>
+  files: Array<MockUploadedFile>
+}
+
 export const providerRequests: Array<ProviderRequest> = []
 
 export function resetProviderRequests() {
@@ -23,10 +36,59 @@ const openAiResponse = () =>
     data: [{ b64_json: MOCK_IMAGE_BYTES.toString('base64') }],
   })
 
+function rejectInvalidOpenAiAuth(request: Request): HttpResponse | undefined {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey || request.headers.get('authorization') !== `Bearer ${apiKey}`) {
+    return HttpResponse.json(
+      { error: { message: 'Mock OpenAI request has invalid authorization' } },
+      { status: 401 },
+    )
+  }
+}
+
+function rejectInvalidGeminiAuth(request: Request): HttpResponse | undefined {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey || request.headers.get('x-goog-api-key') !== apiKey) {
+    return HttpResponse.json(
+      { error: { message: 'Mock Gemini request has invalid API key' } },
+      { status: 401 },
+    )
+  }
+}
+
+async function captureMultipartBody(
+  formData: FormData,
+): Promise<MockMultipartBody> {
+  const fields: Record<string, string> = {}
+  const files: Array<MockUploadedFile> = []
+
+  for (const [field, value] of formData.entries()) {
+    if (typeof value === 'string') {
+      // Undici's multipart parser restores textarea-style line endings. Store
+      // normalized text so assertions describe the payload's semantic value.
+      fields[field] = value.replaceAll('\r\n', '\n')
+      continue
+    }
+
+    files.push({
+      field,
+      name: value.name,
+      type: value.type,
+      size: value.size,
+      base64: Buffer.from(await value.arrayBuffer()).toString('base64'),
+    })
+  }
+
+  return { fields, files }
+}
+
 export const providerHandlers = [
   http.post(
     'https://api.openai.com/v1/images/generations',
     async ({ request }) => {
+      const authError = rejectInvalidOpenAiAuth(request)
+      if (authError) return authError
+
       providerRequests.push({
         provider: 'openai',
         endpoint: new URL(request.url).pathname,
@@ -37,18 +99,14 @@ export const providerHandlers = [
   ),
 
   http.post('https://api.openai.com/v1/images/edits', async ({ request }) => {
+    const authError = rejectInvalidOpenAiAuth(request)
+    if (authError) return authError
+
     const formData = await request.formData()
     providerRequests.push({
       provider: 'openai',
       endpoint: new URL(request.url).pathname,
-      body: Object.fromEntries(
-        Array.from(formData.entries(), ([key, value]) => [
-          key,
-          typeof value === 'string'
-            ? value
-            : { name: value.name, size: value.size, type: value.type },
-        ]),
-      ),
+      body: await captureMultipartBody(formData),
     })
     return openAiResponse()
   }),
@@ -56,6 +114,9 @@ export const providerHandlers = [
   http.post(
     'https://generativelanguage.googleapis.com/v1beta/models/:model\\:generateContent',
     async ({ params, request }) => {
+      const authError = rejectInvalidGeminiAuth(request)
+      if (authError) return authError
+
       providerRequests.push({
         provider: 'gemini',
         endpoint: new URL(request.url).pathname,
