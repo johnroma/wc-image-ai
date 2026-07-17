@@ -13,6 +13,10 @@
  *   })
  */
 
+import type { ImagePart, MediaPrompt } from '@tanstack/ai'
+
+export type { MediaPrompt, MediaPromptPart } from '@tanstack/ai'
+
 import {
   assertGeminiGenerationSupported,
   GEMINI_FLASH_IMAGE_MODEL,
@@ -46,6 +50,11 @@ export {
 
 const OPENAI_BASE = 'https://api.openai.com/v1'
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+const OPENAI_IMAGE_EXTENSIONS: Readonly<Record<string, string>> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
 const DEFAULT_OPENAI_MODEL: OpenAiImageModel = 'gpt-image-2'
 const DEFAULT_GEMINI_MODEL: GeminiImageModel = GEMINI_FLASH_IMAGE_MODEL
 const MAX_OUTPUT_DIMENSION = 4096
@@ -86,7 +95,7 @@ export type BuiltinGenerateOptions = BuiltinGenerateOptionsBase &
   (GeminiFlashOptions | GeminiFlashLiteOptions)
 
 export type CustomGenerateRequest = {
-  prompt: string
+  prompt: MediaPrompt
   width: number
   height: number
   /** Aborts when timeoutMs elapses. Custom generators should pass this signal
@@ -133,7 +142,7 @@ function outputDimension(value: unknown): number | undefined {
 
 async function callCustom(
   generate: CustomImageGenerator,
-  prompt: string,
+  prompt: MediaPrompt,
   width: number,
   height: number,
   timeoutMs: number,
@@ -167,14 +176,117 @@ async function callCustom(
   return { buffer: Buffer.from(result.buffer), mimeType: result.mimeType }
 }
 
-async function callOpenAI(
+function openAiImageBlob(part: ImagePart, index: number): Blob {
+  if (part.source.type !== 'data') {
+    throw new Error(
+      'OpenAI image prompt parts must use a data source; URL fetching is disabled',
+    )
+  }
+  const mimeType = part.source.mimeType
+  if (!(mimeType in OPENAI_IMAGE_EXTENSIONS)) {
+    throw new Error(
+      `Image prompt part ${index} has unsupported MIME type: ${mimeType || 'unknown'}`,
+    )
+  }
+  const bytes = Buffer.from(part.source.value, 'base64')
+  if (bytes.byteLength === 0) {
+    throw new Error(`Image prompt part ${index} is empty`)
+  }
+  return new Blob([bytes], { type: mimeType })
+}
+
+function resolvePrompt(prompt: MediaPrompt): {
+  text: string
+  images: Array<ImagePart>
+} {
+  if (typeof prompt === 'string') return { text: prompt, images: [] }
+
+  const text: Array<string> = []
+  const images: Array<ImagePart> = []
+  for (const part of prompt) {
+    if (part.type === 'text') text.push(part.content)
+    else if (part.type === 'image') images.push(part)
+    else {
+      throw new Error(
+        `Unsupported media prompt part: ${part.type}; image generation accepts text and image parts only`,
+      )
+    }
+  }
+  return { text: text.join('\n\n'), images }
+}
+
+async function callOpenAIEdition(
   prompt: string,
+  imageParts: ReadonlyArray<ImagePart>,
   size: string,
   model: string,
   timeoutMs: number,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
+
+  const formData = new FormData()
+  formData.append('model', model)
+  formData.append('prompt', prompt)
+  formData.append('n', '1')
+  formData.append('size', size)
+  imageParts.forEach((part, index) => {
+    const image = openAiImageBlob(part, index + 1)
+    const extension = OPENAI_IMAGE_EXTENSIONS[image.type]
+    formData.append(
+      'image[]',
+      image,
+      `reference-image-${index + 1}.${extension}`,
+    )
+  })
+
+  const response = await fetch(`${OPENAI_BASE}/images/edits`, {
+    method: 'POST',
+    headers: { Authorization: ['Bearer', apiKey].join(' ') },
+    body: formData,
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+
+  if (!response.ok) {
+    const text = (await response.text()).trim()
+    let message = `OpenAI image edition failed (${response.status})`
+    try {
+      const body = JSON.parse(text) as { error?: { message?: string } }
+      if (body.error?.message) message = body.error.message
+    } catch {
+      message = text.replace(/\s+/g, ' ').slice(0, 300)
+    }
+    throw new Error(message)
+  }
+
+  const data = (await response.json()) as {
+    data?: Array<{ b64_json?: string }>
+  }
+  const base64 = data?.data?.[0]?.b64_json
+  if (!base64) throw new Error(`OpenAI ${model} returned no image data`)
+  return { buffer: Buffer.from(base64, 'base64'), mimeType: 'image/png' }
+}
+
+async function callOpenAI(
+  mediaPrompt: MediaPrompt,
+  size: string,
+  model: string,
+  timeoutMs: number,
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
+
+  const resolved = resolvePrompt(mediaPrompt)
+  if (resolved.images.length > 0) {
+    return callOpenAIEdition(
+      resolved.text,
+      resolved.images,
+      size,
+      model,
+      timeoutMs,
+    )
+  }
+  const prompt = resolved.text
 
   const response = await fetch(`${OPENAI_BASE}/images/generations`, {
     method: 'POST',
@@ -207,7 +319,7 @@ async function callOpenAI(
 }
 
 async function callGemini(
-  prompt: string,
+  prompt: MediaPrompt,
   width: number,
   height: number,
   model: string,
@@ -229,13 +341,39 @@ async function callGemini(
         : capabilities?.defaultImageSize)
   assertGeminiGenerationSupported(model, ratio, requestedSize)
 
+  const promptParts =
+    typeof prompt === 'string'
+      ? [{ text: prompt }]
+      : prompt.map((part, index) => {
+          if (part.type === 'text') return { text: part.content }
+          if (part.source.type !== 'data') {
+            throw new Error(
+              'Gemini image prompt parts must use a data source; URL fetching is disabled',
+            )
+          }
+          if (!part.source.mimeType.startsWith('image/')) {
+            throw new Error(
+              `Image prompt part ${index + 1} has invalid MIME type: ${part.source.mimeType || 'unknown'}`,
+            )
+          }
+          if (part.source.value.length === 0) {
+            throw new Error(`Image prompt part ${index + 1} is empty`)
+          }
+          return {
+            inlineData: {
+              data: part.source.value,
+              mimeType: part.source.mimeType,
+            },
+          }
+        })
+
   const response = await fetch(
     `${GEMINI_BASE}/models/${model}:generateContent`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts: promptParts }],
         generationConfig: {
           responseModalities: ['TEXT', 'IMAGE'],
           imageConfig: {
@@ -286,7 +424,7 @@ async function callGemini(
  * catch the error and call again with a different provider.
  */
 export async function generateImageBuffer(
-  prompt: string,
+  prompt: MediaPrompt,
   width: number,
   height: number,
   options: GenerateOptions = {},

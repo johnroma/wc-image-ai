@@ -12,6 +12,8 @@
  *     aspectRatio: '16:9',
  *   })
  */
+import type { MediaPrompt } from '@tanstack/ai';
+export type { MediaPrompt, MediaPromptPart } from '@tanstack/ai';
 import { assertGeminiGenerationSupported, GEMINI_FLASH_IMAGE_MODEL, GEMINI_FLASH_LITE_IMAGE_MODEL, type GeminiFlashImageSize, type GeminiFlashLiteImageSize, type GeminiRatio, geminiModelCapabilities, type HeroProvider, nearestGeminiRatio, type OpenAiImageModel, openaiGenerationSize, withinOpenaiRatio } from './provider-ratios.js';
 export type { GeminiImageModel, GeminiImageSize, GeminiRatio, OpenAiImageModel, } from './provider-ratios.js';
 export { assertGeminiGenerationSupported, geminiModelCapabilities, nearestGeminiRatio, openaiGenerationSize, withinOpenaiRatio, };
@@ -46,7 +48,7 @@ type GeminiFlashLiteOptions = {
  */
 export type BuiltinGenerateOptions = BuiltinGenerateOptionsBase & (GeminiFlashOptions | GeminiFlashLiteOptions);
 export type CustomGenerateRequest = {
-    prompt: string;
+    prompt: MediaPrompt;
     width: number;
     height: number;
     /** Aborts when timeoutMs elapses. Custom generators should pass this signal
@@ -79,4 +81,4 @@ export type GeneratedBuffer = {
  * no automatic fallback between providers.  If you need a fallback strategy,
  * catch the error and call again with a different provider.
  */
-export declare function generateImageBuffer(prompt: string, width: number, height: number, options?: GenerateOptions): Promise<GeneratedBuffer>;
+export declare function generateImageBuffer(prompt: MediaPrompt, width: number, height: number, options?: GenerateOptions): Promise<GeneratedBuffer>;

@@ -126,6 +126,46 @@ With no `provider` specified, defaults to `openai`. The module calls exactly
 one provider and throws on failure — provider fallback and retry strategy are
 the caller's responsibility.
 
+### Multimodal prompts (reference images)
+
+`prompt` accepts TanStack AI's `MediaPrompt`: either a string or an ordered
+array of text and image parts. Put the instructions and references in the same
+prompt so their relationship is explicit:
+
+```ts
+import {
+  generateImageBuffer,
+  type MediaPrompt,
+} from 'wc-img-ai/server'
+
+const referenceData = Buffer.from(
+  await referenceImage.arrayBuffer(),
+).toString('base64')
+
+const prompt: MediaPrompt = [
+  { type: 'text', content: 'Use image 1 as the composition reference.' },
+  {
+    type: 'image',
+    source: {
+      type: 'data',
+      value: referenceData,
+      mimeType: referenceImage.type,
+    },
+  },
+  { type: 'text', content: 'Render it as a clean architectural blueprint.' },
+]
+
+const image = await generateImageBuffer(prompt, 1536, 1024, {
+  provider: 'openai',
+})
+```
+
+For OpenAI, text parts are joined and image parts are sent in the same
+multipart `/images/edits` request. For Gemini, the ordered parts are sent as
+text and `inlineData` in the same `generateContent` request. Multiple image
+parts are supported. Image sources must currently be base64 `data` sources;
+server-side URL fetching is intentionally disabled.
+
 ### Opt-in custom transport
 
 A server application can supply its own generator. This is never selected by
@@ -270,6 +310,29 @@ POST {endpoint}  { prompt, imageId?, width, height, llm?, ratio?, light? }
 The server can also return raw image bytes (blob-proxy mode) — the component
 detects the `Content-Type: image/*` response and fires the `ai-image` event
 with a `blob` field so the host can upload to its own storage.
+
+## Testing provider integrations without API charges
+
+The test harness has one mock-mode switch: `MSW=true`. It is intentionally not
+split into server and browser variables: Node tests use it to start MSW's
+`setupServer`, and any browser test harness should use that same switch to start
+MSW's `setupWorker`. The Vite and Vitest configs expose this one test-only value
+as both `process.env.MSW` and `import.meta.env.MSW`; it must never contain a
+secret.
+
+The current end-to-end suite runs the demo HTTP flow in Node and intercepts the
+provider requests with `setupServer`. The handlers cover OpenAI image
+generations, OpenAI image edits, and Gemini `generateContent`, returning a tiny
+deterministic PNG fixture. Unhandled non-local HTTP requests fail the test, so a
+changed provider URL cannot silently spend API tokens.
+
+```sh
+pnpm test      # build, unit tests, and the mocked HTTP end-to-end flow
+pnpm test:e2e  # build and run only the mocked HTTP end-to-end flow
+```
+
+`MSW` is test-only. The demo and published package do not enable mocks, and the
+mock server is never included in runtime code.
 
 ## License
 

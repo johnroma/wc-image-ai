@@ -11,7 +11,7 @@
  *   GET /images/<id>.png       → stored bytes
  *
  * Usage:
- *   pnpm build && OPENAI_API_KEY=sk-… node demo/server.mjs
+ *   pnpm build && OPENAI_API_KEY=<your-key> node demo/server.mjs
  */
 
 import fs from 'node:fs'
@@ -23,15 +23,8 @@ import { generateImageBuffer } from '../dist/server.js'
 
 const __dir = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dir, '..')
-const IMAGES_DIR = path.join(root, 'images')
-fs.mkdirSync(IMAGES_DIR, { recursive: true })
-
 const PORT = parseInt(process.env.PORT || '3000', 10)
-
-function imagePath(id) {
-  if (!/^[A-Za-z0-9_-]+$/.test(id)) return null
-  return path.join(IMAGES_DIR, `${id}.png`)
-}
+const DEFAULT_IMAGES_DIR = path.join(root, 'images')
 
 function json(res, status, payload) {
   res.writeHead(status, { 'Content-Type': 'application/json' })
@@ -47,7 +40,12 @@ function readBody(req) {
   })
 }
 
-const server = http.createServer(async (req, res) => {
+function imagePath(imagesDir, id) {
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) return null
+  return path.join(imagesDir, `${id}.png`)
+}
+
+async function handleRequest(imagesDir, req, res) {
   const url = new URL(req.url, `http://localhost:${PORT}`)
 
   if (req.method === 'POST' && url.pathname === '/api/img') {
@@ -61,7 +59,7 @@ const server = http.createServer(async (req, res) => {
     const { prompt, imageId, width, height, llm, ratio } = body
 
     if (imageId) {
-      const p = imagePath(imageId)
+      const p = imagePath(imagesDir, imageId)
       if (p && fs.existsSync(p)) {
         return json(res, 200, { id: imageId, url: `/images/${imageId}.png` })
       }
@@ -81,7 +79,7 @@ const server = http.createServer(async (req, res) => {
       )
       const id = nanoid()
       const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png'
-      fs.writeFileSync(path.join(IMAGES_DIR, `${id}.${ext}`), buffer)
+      fs.writeFileSync(path.join(imagesDir, `${id}.${ext}`), buffer)
       return json(res, 200, { id, url: `/images/${id}.${ext}` })
     } catch (err) {
       return json(res, 502, {
@@ -92,7 +90,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname.startsWith('/images/')) {
     const id = path.basename(url.pathname).replace(/\.[^.]+$/, '')
-    const p = imagePath(id)
+    const p = imagePath(imagesDir, id)
     if (!p) {
       res.writeHead(400)
       return res.end('Bad id')
@@ -136,13 +134,24 @@ const server = http.createServer(async (req, res) => {
 
   res.writeHead(404)
   res.end('Not found')
-})
+}
 
-server.listen(PORT, () => {
-  console.log(`\n  wc-img-ai demo`)
-  console.log(
-    `  OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'set' : '⚠ not set'}`,
-  )
-  console.log(`  images → ${IMAGES_DIR}`)
-  console.log(`  → http://localhost:${PORT}\n`)
-})
+export function createDemoServer({ imagesDir = DEFAULT_IMAGES_DIR } = {}) {
+  fs.mkdirSync(imagesDir, { recursive: true })
+  return http.createServer((req, res) => handleRequest(imagesDir, req, res))
+}
+
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  const server = createDemoServer()
+  server.listen(PORT, () => {
+    console.log(`\n  wc-img-ai demo`)
+    console.log(
+      `  OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'set' : '⚠ not set'}`,
+    )
+    console.log(`  images → ${DEFAULT_IMAGES_DIR}`)
+    console.log(`  → http://localhost:${PORT}\n`)
+  })
+}

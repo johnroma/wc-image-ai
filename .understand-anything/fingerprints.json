@@ -1,0 +1,724 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "38b3ebaeb31d4728e89e981346493c209772e1a1",
+  "generatedAt": "2026-07-16T18:02:13.229Z",
+  "files": {
+    ".npmrc": {
+      "filePath": ".npmrc",
+      "contentHash": "ea29de99db7e081c28ddd94c63512776de0d22942d95e24570c6c31a3a7de410",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": false
+    },
+    ".understand-anything/.understandignore": {
+      "filePath": ".understand-anything/.understandignore",
+      "contentHash": "a476480066f1aacc1058dee345cff473e4d3594695385b7aba9f87193049054d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 49,
+      "hasStructuralAnalysis": false
+    },
+    "demo/server.mjs": {
+      "filePath": "demo/server.mjs",
+      "contentHash": "c5115ca044cab645dc6bf0f01f76a28b2fc9cf3eeae43d6eab710bf636f96290",
+      "functions": [
+        {
+          "name": "imagePath",
+          "params": [
+            "id"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "json",
+          "params": [
+            "res",
+            "status",
+            "payload"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "readBody",
+          "params": [
+            "req"
+          ],
+          "exported": false,
+          "lineCount": 8
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "http"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        },
+        {
+          "source": "nanoid",
+          "specifiers": [
+            "nanoid"
+          ]
+        },
+        {
+          "source": "../dist/server.js",
+          "specifiers": [
+            "generateImageBuffer"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 149,
+      "hasStructuralAnalysis": true
+    },
+    "eslint.config.js": {
+      "filePath": "eslint.config.js",
+      "contentHash": "709e16b02c7a977f0f0ac116be0862d7fb8180c0f791e7e856b660e23cb9aea2",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@eslint/js",
+          "specifiers": [
+            "js"
+          ]
+        },
+        {
+          "source": "@typescript-eslint/eslint-plugin",
+          "specifiers": [
+            "tsPlugin"
+          ]
+        },
+        {
+          "source": "@typescript-eslint/parser",
+          "specifiers": [
+            "tsParser"
+          ]
+        },
+        {
+          "source": "eslint-plugin-wc",
+          "specifiers": [
+            "wc"
+          ]
+        },
+        {
+          "source": "globals",
+          "specifiers": [
+            "globals"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 44,
+      "hasStructuralAnalysis": true
+    },
+    "src/ai-img.ts": {
+      "filePath": "src/ai-img.ts",
+      "contentHash": "d754a22005e431d0b3f90d663d18be072137fccc75f401dd969d7489d7b7de64",
+      "functions": [
+        {
+          "name": "placeholder",
+          "params": [
+            "width",
+            "height"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "dimensionsFor",
+          "params": [
+            "width",
+            "height",
+            "ratio"
+          ],
+          "exported": false,
+          "lineCount": 23
+        }
+      ],
+      "classes": [
+        {
+          "name": "AiImg",
+          "methods": [
+            "connectedCallback",
+            "updated",
+            "refresh",
+            "debugState",
+            "disconnectedCallback",
+            "start",
+            "collectPassThroughAttributes",
+            "resolve",
+            "settle",
+            "dispatchStatus",
+            "settleFallback",
+            "dispatchError",
+            "render"
+          ],
+          "properties": [
+            "src",
+            "endpoint",
+            "prompt",
+            "imageId",
+            "llm",
+            "ratio",
+            "light",
+            "subscription",
+            "regenerate",
+            "fallback",
+            "width",
+            "height",
+            "alt",
+            "status",
+            "errorMessage",
+            "errorStatus",
+            "imgsrc",
+            "loadingKind",
+            "imgAttributes",
+            "onFallback",
+            "retried",
+            "resolvedUrl",
+            "blobUrl",
+            "activeResolveToken",
+            "onImgLoad",
+            "onImgError",
+            "styles"
+          ],
+          "exported": true,
+          "lineCount": 488
+        }
+      ],
+      "imports": [
+        {
+          "source": "@open-wc/lit-helpers",
+          "specifiers": [
+            "spread"
+          ]
+        },
+        {
+          "source": "lit",
+          "specifiers": [
+            "css",
+            "html",
+            "LitElement",
+            "nothing",
+            "PropertyValues"
+          ]
+        },
+        {
+          "source": "lit/decorators.js",
+          "specifiers": [
+            "property",
+            "state"
+          ]
+        },
+        {
+          "source": "./get-generated-image",
+          "specifiers": [
+            "ResolveImageError",
+            "ResolveImageStatusEvent",
+            "resolveImage",
+            "TRANSPARENT_PIXEL"
+          ]
+        },
+        {
+          "source": "./provider-ratios",
+          "specifiers": [
+            "GEMINI_FLASH_IMAGE_MODEL",
+            "GEMINI_FLASH_LITE_IMAGE_MODEL",
+            "isGeminiRatioSupported",
+            "isRatioSupported"
+          ]
+        }
+      ],
+      "exports": [
+        "AiImg"
+      ],
+      "totalLines": 571,
+      "hasStructuralAnalysis": true
+    },
+    "src/get-generated-image.ts": {
+      "filePath": "src/get-generated-image.ts",
+      "contentHash": "8873ef6ebe635b15a75a10db76bab93059e2c34c66dd6b4a5a42d6d69d3529d9",
+      "functions": [
+        {
+          "name": "errorMessageFrom",
+          "params": [
+            "response"
+          ],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "sleep",
+          "params": [
+            "ms"
+          ],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "readJson",
+          "params": [
+            "response"
+          ],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "hasUrl",
+          "params": [
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "isPending",
+          "params": [
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "isFailed",
+          "params": [
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "resolveStatusUrl",
+          "params": [
+            "endpoint",
+            "statusUrl"
+          ],
+          "exported": false,
+          "lineCount": 20
+        },
+        {
+          "name": "pollPendingImage",
+          "params": [
+            "endpoint",
+            "initial",
+            "options"
+          ],
+          "returnType": "Promise<ResolvedImage>",
+          "exported": false,
+          "lineCount": 70
+        },
+        {
+          "name": "resolveImage",
+          "params": [
+            "endpoint",
+            "req",
+            "options"
+          ],
+          "returnType": "Promise<ResolvedImage>",
+          "exported": true,
+          "lineCount": 72
+        }
+      ],
+      "classes": [
+        {
+          "name": "ResolveImageError",
+          "methods": [
+            "constructor"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "spinner",
+        "imageLoader",
+        "TRANSPARENT_PIXEL",
+        "ResolveImageError",
+        "resolveImage"
+      ],
+      "totalLines": 300,
+      "hasStructuralAnalysis": true
+    },
+    "src/provider-ratios.ts": {
+      "filePath": "src/provider-ratios.ts",
+      "contentHash": "b2c5791c37950a00ea5c334980da1a26a3dfebf5eef7c703e3dcdb15196e4fc5",
+      "functions": [
+        {
+          "name": "roundUp",
+          "params": [
+            "value",
+            "step"
+          ],
+          "returnType": "number",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "generationCanvasForProvider",
+          "params": [
+            "provider",
+            "width",
+            "height"
+          ],
+          "returnType": "{ width: number; height: number }",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "geminiModelCapabilities",
+          "params": [
+            "model"
+          ],
+          "returnType": "GeminiModelCapabilities | undefined",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "isGeminiRatioSupported",
+          "params": [
+            "model",
+            "ratio"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "isGeminiImageSizeSupported",
+          "params": [
+            "model",
+            "imageSize"
+          ],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "assertGeminiGenerationSupported",
+          "params": [
+            "model",
+            "ratio",
+            "imageSize"
+          ],
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "isRatioSupported",
+          "params": [
+            "provider",
+            "ratio"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "withinOpenaiRatio",
+          "params": [
+            "width",
+            "height"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "openaiGenerationSize",
+          "params": [
+            "width",
+            "height"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "nearestGeminiRatio",
+          "params": [
+            "width",
+            "height",
+            "model"
+          ],
+          "returnType": "GeminiRatio",
+          "exported": true,
+          "lineCount": 21
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "OPENAI_IMAGE_MODELS",
+        "GEMINI_FLASH_IMAGE_MODEL",
+        "GEMINI_FLASH_LITE_IMAGE_MODEL",
+        "GEMINI_IMAGE_MODELS",
+        "PROVIDER_CANVAS_CAPABILITIES",
+        "generationCanvasForProvider",
+        "OPENAI_RATIOS",
+        "GEMINI_RATIOS",
+        "GEMINI_FLASH_LITE_RATIOS",
+        "GEMINI_FLASH_IMAGE_SIZES",
+        "GEMINI_FLASH_LITE_IMAGE_SIZES",
+        "GEMINI_MODEL_CAPABILITIES",
+        "geminiModelCapabilities",
+        "isGeminiRatioSupported",
+        "isGeminiImageSizeSupported",
+        "assertGeminiGenerationSupported",
+        "PROVIDER_RATIOS",
+        "isRatioSupported",
+        "withinOpenaiRatio",
+        "openaiGenerationSize",
+        "nearestGeminiRatio"
+      ],
+      "totalLines": 273,
+      "hasStructuralAnalysis": true
+    },
+    "src/server.ts": {
+      "filePath": "src/server.ts",
+      "contentHash": "ea5c6332d3a5973103c3b72813a141fcf537daba82bab08bb353b5cbe111f7a1",
+      "functions": [
+        {
+          "name": "outputDimension",
+          "params": [
+            "value"
+          ],
+          "returnType": "number | undefined",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "callCustom",
+          "params": [
+            "generate",
+            "prompt",
+            "width",
+            "height",
+            "timeoutMs"
+          ],
+          "returnType": "Promise<{ buffer: Buffer; mimeType: string }>",
+          "exported": false,
+          "lineCount": 35
+        },
+        {
+          "name": "fetchReferenceImageBlob",
+          "params": [
+            "url",
+            "timeoutMs"
+          ],
+          "returnType": "Promise<Blob>",
+          "exported": false,
+          "lineCount": 19
+        },
+        {
+          "name": "callOpenAIEdition",
+          "params": [
+            "prompt",
+            "referenceImageBlob",
+            "size",
+            "model",
+            "timeoutMs"
+          ],
+          "returnType": "Promise<{ buffer: Buffer; mimeType: string }>",
+          "exported": false,
+          "lineCount": 43
+        },
+        {
+          "name": "callOpenAI",
+          "params": [
+            "prompt",
+            "size",
+            "model",
+            "timeoutMs",
+            "referenceImage"
+          ],
+          "returnType": "Promise<{ buffer: Buffer; mimeType: string }>",
+          "exported": false,
+          "lineCount": 47
+        },
+        {
+          "name": "callGemini",
+          "params": [
+            "prompt",
+            "width",
+            "height",
+            "model",
+            "timeoutMs",
+            "explicitRatio",
+            "explicitImageSize"
+          ],
+          "returnType": "Promise<{ buffer: Buffer; mimeType: string }>",
+          "exported": false,
+          "lineCount": 69
+        },
+        {
+          "name": "generateImageBuffer",
+          "params": [
+            "prompt",
+            "width",
+            "height",
+            "options"
+          ],
+          "returnType": "Promise<GeneratedBuffer>",
+          "exported": true,
+          "lineCount": 56
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./provider-ratios.js",
+          "specifiers": [
+            "assertGeminiGenerationSupported",
+            "GEMINI_FLASH_IMAGE_MODEL",
+            "GEMINI_FLASH_LITE_IMAGE_MODEL",
+            "GeminiFlashImageSize",
+            "GeminiFlashLiteImageSize",
+            "GeminiImageModel",
+            "GeminiImageSize",
+            "GeminiRatio",
+            "geminiModelCapabilities",
+            "HeroProvider",
+            "nearestGeminiRatio",
+            "OpenAiImageModel",
+            "openaiGenerationSize",
+            "withinOpenaiRatio"
+          ]
+        }
+      ],
+      "exports": [
+        "GeminiImageModel",
+        "GeminiImageSize",
+        "GeminiRatio",
+        "OpenAiImageModel",
+        "assertGeminiGenerationSupported",
+        "geminiModelCapabilities",
+        "nearestGeminiRatio",
+        "openaiGenerationSize",
+        "withinOpenaiRatio",
+        "generateImageBuffer"
+      ],
+      "totalLines": 420,
+      "hasStructuralAnalysis": true
+    },
+    "types/ai-img.d.ts": {
+      "filePath": "types/ai-img.d.ts",
+      "contentHash": "52dcd62cf38308430a234a4779e3252cd0b9d69461f857812e62b524105c77a6",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "lit",
+          "specifiers": [
+            "LitElement",
+            "PropertyValues"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 73,
+      "hasStructuralAnalysis": true
+    },
+    "types/get-generated-image.d.ts": {
+      "filePath": "types/get-generated-image.d.ts",
+      "contentHash": "6a58f16fb19f53099f27f3fc00dafb7c83c2c5a0f3439bf7ad03d7582cac1df4",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 63,
+      "hasStructuralAnalysis": true
+    },
+    "types/provider-ratios.d.ts": {
+      "filePath": "types/provider-ratios.d.ts",
+      "contentHash": "4846cda1e2de30eea60bc36799d6139b8a11db54bf6792c6020f3f8580d8a34a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 97,
+      "hasStructuralAnalysis": true
+    },
+    "types/server.d.ts": {
+      "filePath": "types/server.d.ts",
+      "contentHash": "9047c48e05da88ee6377efbfa57a1193ed706e052441d31db117c0a05fd188db",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./provider-ratios.js",
+          "specifiers": [
+            "assertGeminiGenerationSupported",
+            "GEMINI_FLASH_IMAGE_MODEL",
+            "GEMINI_FLASH_LITE_IMAGE_MODEL",
+            "GeminiFlashImageSize",
+            "GeminiFlashLiteImageSize",
+            "GeminiRatio",
+            "geminiModelCapabilities",
+            "HeroProvider",
+            "nearestGeminiRatio",
+            "OpenAiImageModel",
+            "openaiGenerationSize",
+            "withinOpenaiRatio"
+          ]
+        }
+      ],
+      "exports": [
+        "GeminiImageModel",
+        "GeminiImageSize",
+        "GeminiRatio",
+        "OpenAiImageModel",
+        "assertGeminiGenerationSupported",
+        "geminiModelCapabilities",
+        "nearestGeminiRatio",
+        "openaiGenerationSize",
+        "withinOpenaiRatio"
+      ],
+      "totalLines": 86,
+      "hasStructuralAnalysis": true
+    },
+    "vite.config.ts": {
+      "filePath": "vite.config.ts",
+      "contentHash": "33be4551799f4a2595bb355513ccd9a52e0d2e4dfc52bd7c1e6bab1ecef19da8",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vite",
+          "specifiers": [
+            "defineConfig"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 17,
+      "hasStructuralAnalysis": true
+    }
+  }
+}

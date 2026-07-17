@@ -6,7 +6,13 @@ import globals from 'globals'
 
 export default [
   {
-    ignores: ['dist/**', 'types/**', 'node_modules/**', '.fallow/**'],
+    ignores: [
+      'dist/**',
+      'types/**',
+      'node_modules/**',
+      '.fallow/**',
+      '.understand-anything/**',
+    ],
   },
   js.configs.recommended,
   {
