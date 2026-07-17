@@ -16,6 +16,7 @@
   "type": "module",
   "repository": "https://github.com/johnroma/wc-image-ai",
   "license": "MIT",
+  "packageManager": "pnpm@11.10.0",
   "files": [
     "dist",
     "types/ai-img.d.ts",
@@ -53,12 +54,15 @@
     "lint:eslint:fix": "eslint . --fix",
     "preview": "vite preview",
     "demo": "node demo/server.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
     "test": "pnpm build && MSW=true vitest run",
     "test:e2e": "pnpm build && MSW=true vitest run test/demo.e2e.test.ts",
     "prepack": "pnpm build"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
+    "@changesets/cli": "^2.31.0",
     "@eslint/js": "^9.35.0",
     "@types/node": "^20.19.43",
     "@typescript-eslint/eslint-plugin": "^8.63.0",
@@ -73,7 +77,6 @@
     "vitest": "^3.2.7"
   },
   "dependencies": {
-    "@changesets/cli": "^2.27.1",
     "@lit-labs/observers": "^2.0.2",
     "@open-wc/lit-helpers": "^0.7.0",
     "@tanstack/ai": "0.41.0",
