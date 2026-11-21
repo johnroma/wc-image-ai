@@ -32,3 +32,6 @@ images
 *.njsproj
 *.sln
 *.sw?
+
+# Machine-local Claude Code permissions (keep shared .claude files tracked).
+/.claude/settings.local.json
